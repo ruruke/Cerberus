@@ -211,7 +211,7 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "      - back-net").unwrap();
         writeln!(output, "    environment:").unwrap();
         writeln!(output, "      - PROXY_LAYER={}", proxy.layer.unwrap_or(0)).unwrap();
-        writeln!(output, "      - INSTANCE_ID={}", instance).unwrap();
+        writeln!(output, "      - INSTANCE_ID={instance}").unwrap();
         writeln!(
             output,
             "      - MAX_CONNECTIONS={}",
@@ -232,7 +232,7 @@ impl<'a> DockerComposeGenerator<'a> {
             proxy.proxy_type.to_string()
         )
         .unwrap();
-        writeln!(output, "      - \"cerberus.instance={}\"", instance).unwrap();
+        writeln!(output, "      - \"cerberus.instance={instance}\"").unwrap();
 
         Ok(())
     }
@@ -259,7 +259,7 @@ impl<'a> DockerComposeGenerator<'a> {
         if !dependencies.is_empty() {
             writeln!(output, "    depends_on:").unwrap();
             for dep in dependencies {
-                writeln!(output, "      - {}", dep).unwrap();
+                writeln!(output, "      - {dep}").unwrap();
             }
         }
 

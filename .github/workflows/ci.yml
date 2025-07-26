@@ -55,7 +55,9 @@ jobs:
           cargo clippy --bin cerberus --verbose -- -D warnings
           echo "Step 3: Running Clippy on tests..."
           cargo clippy --tests --verbose -- -D warnings
-          echo "Step 4: Running Clippy on all targets..."
+          echo "Step 4: Running Clippy on all targets (warnings only)..."
+          cargo clippy --all-targets --all-features --verbose
+          echo "Step 5: Running Clippy with -D warnings for full check..."
           cargo clippy --all-targets --all-features --verbose -- -D warnings
 
       - name: Check TOML syntax  

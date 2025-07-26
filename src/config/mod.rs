@@ -374,8 +374,7 @@ impl Config {
         for (index, proxy) in self.proxies.iter().enumerate() {
             if proxy.name.trim().is_empty() {
                 return Err(CerberusError::validation(format!(
-                    "Proxy {} name cannot be empty",
-                    index
+                    "Proxy {index} name cannot be empty"
                 )));
             }
 
@@ -398,8 +397,7 @@ impl Config {
         for (index, service) in self.services.iter().enumerate() {
             if service.name.trim().is_empty() {
                 return Err(CerberusError::validation(format!(
-                    "Service {} name cannot be empty",
-                    index
+                    "Service {index} name cannot be empty"
                 )));
             }
 
