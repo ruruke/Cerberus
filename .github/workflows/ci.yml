@@ -25,18 +25,15 @@ jobs:
         with:
           components: rustfmt, clippy
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          # オプション: 特定のキーパターンを使用
+          shared-key: "cerberus-ci"
+          # ターゲットディレクトリのキャッシュ有効
+          cache-targets: true
+          # 一時的なアーティファクトの削除
+          cache-on-failure: true
 
       - name: Check Rust formatting
         run: cargo fmt --all -- --check
@@ -107,18 +104,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          # オプション: 特定のキーパターンを使用
+          shared-key: "cerberus-ci"
+          # ターゲットディレクトリのキャッシュ有効
+          cache-targets: true
+          # 一時的なアーティファクトの削除
+          cache-on-failure: true
 
       - name: Setup dependencies
         run: |
@@ -153,18 +147,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          # オプション: 特定のキーパターンを使用
+          shared-key: "cerberus-ci"
+          # ターゲットディレクトリのキャッシュ有効
+          cache-targets: true
+          # 一時的なアーティファクトの削除
+          cache-on-failure: true
 
       - name: Setup dependencies
         run: |
@@ -216,18 +207,15 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache Cargo dependencies
-        uses: actions/cache@v4
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          # オプション: 特定のキーパターンを使用
+          shared-key: "cerberus-ci"
+          # ターゲットディレクトリのキャッシュ有効
+          cache-targets: true
+          # 一時的なアーティファクトの削除
+          cache-on-failure: true
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
@@ -296,6 +284,13 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cerberus-security"
+          cache-targets: true
+          cache-on-failure: true
+
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
@@ -344,6 +339,13 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "cerberus-benchmarks"
+          cache-targets: true
+          cache-on-failure: true
 
       - name: Build optimized binary
         run: cargo build --release
