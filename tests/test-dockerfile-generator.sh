@@ -9,6 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp"
 
+# Ensure test directories exist
+mkdir -p "${SCRIPT_DIR}/tests/tmp"
+mkdir -p "${BUILT_DIR}"
+
 echo "Testing Dockerfile Generator..."
 echo "=============================="
 
@@ -22,8 +26,9 @@ else
     generate_dockerfiles() { echo "Dockerfile generation stubbed"; }
 fi
 
-# Create test configuration
-cat > "${SCRIPT_DIR}/tests/tmp/dockerfile-test.toml" << 'EOF'
+# Create test configuration  
+TEST_CONFIG="${SCRIPT_DIR}/tests/tmp/dockerfile-test.toml"
+cat > "$TEST_CONFIG" << 'EOF'
 [project]
 name = "test-project"
 
@@ -59,7 +64,7 @@ target = "http://proxy-2:80"
 EOF
 
 echo "1. Loading configuration..."
-config_load "${SCRIPT_DIR}/tests/tmp/dockerfile-test.toml"
+config_load "$TEST_CONFIG"
 
 echo "2. Generating Dockerfiles..."
 rm -rf "${BUILT_DIR}/dockerfiles"

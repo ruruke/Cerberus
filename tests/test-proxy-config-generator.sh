@@ -9,6 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp"
 
+# Ensure test directories exist
+mkdir -p "${SCRIPT_DIR}/tests/tmp"
+mkdir -p "${BUILT_DIR}"
+
 echo "Testing Proxy Configuration Generator..."
 echo "======================================"
 
@@ -28,6 +32,59 @@ TEST_OUTPUT_DIR="${SCRIPT_DIR}/tests/tmp/proxy-configs"
 
 # Clean and setup
 rm -rf "$TEST_OUTPUT_DIR"
+
+# Create test configuration
+cat > "$TEST_CONFIG" << 'EOF'
+[project]
+name = "test-project"
+version = "1.0.0"
+scaling = true
+
+[[proxies]]
+name = "proxy"
+type = "nginx"
+external_port = 8080
+internal_port = 80
+instances = 1
+upstream = "http://anubis:8080"
+
+[[proxies]]
+name = "proxy-2"
+type = "nginx"
+external_port = 80
+internal_port = 80
+instances = 1
+
+[[services]]
+name = "misskey"
+domain = "mi.example.com"
+upstream = "http://100.103.133.21:3000"
+websocket = true
+max_body_size = "100m"
+
+[[services]]
+name = "media-proxy"
+domain = "media.example.com"
+upstream = "http://100.97.11.65:12766"
+websocket = false
+max_body_size = "1m"
+
+[anubis]
+enabled = true
+bind = ":8080"
+difficulty = 5
+target = "http://proxy-2:80"
+metrics_bind = ":9090"
+
+[scaling]
+enabled = true
+check_interval = "30s"
+
+[scaling.metrics]
+cpu_threshold = 80
+memory_threshold = 85
+connections_threshold = 1000
+EOF
 
 echo "1. Loading test configuration..."
 config_load "$TEST_CONFIG"

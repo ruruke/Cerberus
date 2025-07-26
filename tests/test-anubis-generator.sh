@@ -9,6 +9,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp"
 
+# Ensure test directories exist
+mkdir -p "${SCRIPT_DIR}/tests/tmp"
+mkdir -p "${BUILT_DIR}"
+
 echo "Testing Anubis botPolicy Generator..."
 echo "===================================="
 
@@ -23,7 +27,8 @@ else
 fi
 
 # Test configuration
-cat > "${SCRIPT_DIR}/tests/tmp/anubis-test.toml" << 'EOF'
+TEST_CONFIG="${SCRIPT_DIR}/tests/tmp/anubis-test.toml"
+cat > "$TEST_CONFIG" << 'EOF'
 [project]
 name = "anubis-test"
 
@@ -66,7 +71,7 @@ upstream = "http://100.97.11.65:12766"
 EOF
 
 echo "1. Loading configuration..."
-config_load "${SCRIPT_DIR}/tests/tmp/anubis-test.toml"
+config_load "$TEST_CONFIG"
 
 echo "2. Checking configuration access..."
 anubis_enabled=$(config_get_bool "anubis.enabled")
@@ -88,7 +93,7 @@ else
 fi
 
 echo "4. Re-loading configuration after library loading..."
-config_load "${SCRIPT_DIR}/tests/tmp/anubis-test.toml"
+config_load "$TEST_CONFIG"
 
 echo "5. Generating botPolicy.json..."
 rm -rf "${BUILT_DIR}/anubis"
