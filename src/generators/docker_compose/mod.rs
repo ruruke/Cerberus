@@ -36,6 +36,13 @@ impl<'a> DockerComposeGenerator<'a> {
 
         // Generate proxy services
         for (index, proxy) in self.config.proxies.iter().enumerate() {
+            // Skip proxy-1 if anubis is disabled AND proxy is nginx (no DDoS protection needed)
+            // Other proxy types (Caddy, HAProxy, Traefik) always generate as simple reverse proxies
+            if proxy.layer.unwrap_or(1) == 1 
+                && !self.config.anubis.enabled 
+                && proxy.proxy_type == ProxyType::Nginx {
+                continue;
+            }
             self.generate_proxy_service(&mut output, proxy, index)?;
 
             // Generate scaled instances if needed
@@ -46,8 +53,8 @@ impl<'a> DockerComposeGenerator<'a> {
             }
         }
 
-        // Generate Anubis service if enabled
-        if self.config.anubis.enabled {
+        // Generate Anubis service if enabled and at least one nginx proxy exists
+        if self.config.anubis.enabled && self.has_nginx_proxy() {
             self.generate_anubis_service(&mut output)?;
         }
 
@@ -108,16 +115,42 @@ impl<'a> DockerComposeGenerator<'a> {
                 adjusted_port, proxy.internal_port
             )
             .unwrap();
+        } else if proxy.layer.unwrap_or(1) == 2 && !self.config.anubis.enabled {
+            // If anubis is disabled, proxy-2 should expose external port
+            writeln!(output, "    ports:").unwrap();
+            writeln!(
+                output,
+                "      - \"7000:{}\"",
+                proxy.internal_port
+            )
+            .unwrap();
         }
         writeln!(output, "    volumes:").unwrap();
-        writeln!(
-            output,
-            "      - ./proxy-configs/{}:{}:ro",
-            proxy.name,
-            self.get_proxy_config_dir(&proxy.proxy_type)
-        )
-        .unwrap();
-        writeln!(output, "      - ./built/logs:/var/log/nginx:rw").unwrap();
+        match proxy.proxy_type {
+            ProxyType::Nginx => {
+                writeln!(
+                    output,
+                    "      - ./proxy-configs/{}/conf.d:/etc/nginx/conf.d",
+                    proxy.name
+                )
+                .unwrap();
+            },
+            _ => {
+                writeln!(
+                    output,
+                    "      - ./proxy-configs/{}:{}:ro",
+                    proxy.name,
+                    self.get_proxy_config_dir(&proxy.proxy_type)
+                )
+                .unwrap();
+            }
+        }
+        let log_path = match proxy.proxy_type.as_str() {
+            "caddy" => "/var/log/caddy",
+            "nginx" => "/var/log/nginx",
+            _ => "/var/log/proxy",
+        };
+        writeln!(output, "      - ./built/logs:{}:rw", log_path).unwrap();
         writeln!(output, "    networks:").unwrap();
         // Add networks dynamically
         for network_name in &proxy.networks {
@@ -164,18 +197,7 @@ impl<'a> DockerComposeGenerator<'a> {
         )
         .unwrap();
 
-        // Add healthcheck
-        writeln!(output, "    healthcheck:").unwrap();
-        writeln!(
-            output,
-            "      test: [\"CMD\", \"{}\"]",
-            self.get_proxy_healthcheck_cmd(&proxy.proxy_type)
-        )
-        .unwrap();
-        writeln!(output, "      interval: 30s").unwrap();
-        writeln!(output, "      timeout: 10s").unwrap();
-        writeln!(output, "      retries: 3").unwrap();
-        writeln!(output, "      start_period: 40s").unwrap();
+        // Healthcheck removed for simplicity
 
         Ok(())
     }
@@ -212,14 +234,31 @@ impl<'a> DockerComposeGenerator<'a> {
             .unwrap();
         }
         writeln!(output, "    volumes:").unwrap();
-        writeln!(
-            output,
-            "      - ./proxy-configs/{}:{}:ro",
-            proxy.name,
-            self.get_proxy_config_dir(&proxy.proxy_type)
-        )
-        .unwrap();
-        writeln!(output, "      - ./built/logs:/var/log/nginx:rw").unwrap();
+        match proxy.proxy_type {
+            ProxyType::Nginx => {
+                writeln!(
+                    output,
+                    "      - ./proxy-configs/{}/conf.d:/etc/nginx/conf.d",
+                    proxy.name
+                )
+                .unwrap();
+            },
+            _ => {
+                writeln!(
+                    output,
+                    "      - ./proxy-configs/{}:{}:ro",
+                    proxy.name,
+                    self.get_proxy_config_dir(&proxy.proxy_type)
+                )
+                .unwrap();
+            }
+        }
+        let log_path = match proxy.proxy_type.as_str() {
+            "caddy" => "/var/log/caddy",
+            "nginx" => "/var/log/nginx",
+            _ => "/var/log/proxy",
+        };
+        writeln!(output, "      - ./built/logs:{}:rw", log_path).unwrap();
         writeln!(output, "    networks:").unwrap();
         // Add networks dynamically
         for network_name in &proxy.networks {
@@ -295,13 +334,7 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "    image: {}", self.config.anubis.image).unwrap();
         writeln!(output, "    container_name: anubis").unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
-        // Anubis ports - only expose if configured
-        if let Some(external_ports) = &self.config.anubis.external_ports {
-            writeln!(output, "    ports:").unwrap();
-            for port_mapping in external_ports {
-                writeln!(output, "      - \"{}\"", port_mapping).unwrap();
-            }
-        }
+        // Anubis ports - not exposed externally for security
         writeln!(output, "    volumes:").unwrap();
         writeln!(
             output,
@@ -334,21 +367,11 @@ impl<'a> DockerComposeGenerator<'a> {
             self.config.anubis.metrics_bind
         )
         .unwrap();
-        writeln!(output, "      - SERVE_ROBOTS_TXT=\"true\"").unwrap();
+        writeln!(output, "      - SERVE_ROBOTS_TXT={}", self.config.anubis.serve_robots_txt).unwrap();
         writeln!(output, "    labels:").unwrap();
         writeln!(output, "      - \"cerberus.service=ddos-protection\"").unwrap();
         writeln!(output, "      - \"cerberus.layer=anubis\"").unwrap();
-        writeln!(output, "    healthcheck:").unwrap();
-        writeln!(
-            output,
-            "      test: [\"CMD\", \"curl\", \"-f\", \"http://localhost{}/metrics\"]",
-            self.config.anubis.metrics_bind
-        )
-        .unwrap();
-        writeln!(output, "      interval: 30s").unwrap();
-        writeln!(output, "      timeout: 10s").unwrap();
-        writeln!(output, "      retries: 3").unwrap();
-        writeln!(output, "      start_period: 40s").unwrap();
+        // Healthcheck removed for simplicity
 
         // Anubis depends on the last proxy layer
         if self.config.proxies.len() > 1 {
@@ -537,17 +560,6 @@ impl<'a> DockerComposeGenerator<'a> {
         }
     }
 
-    /// Get healthcheck command for proxy type
-    fn get_proxy_healthcheck_cmd(&self, proxy_type: &ProxyType) -> &'static str {
-        match proxy_type {
-            ProxyType::Caddy => "curl -f http://localhost:2019/health || exit 1",
-            ProxyType::Nginx => "nginx -t || exit 1",
-            ProxyType::HaProxy => "haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg || exit 1",
-            ProxyType::Traefik => {
-                "wget --no-verbose --tries=1 --spider http://localhost:8080/ping || exit 1"
-            }
-        }
-    }
 
     /// Check if upstream is an external IP/hostname
     fn is_external_upstream(&self, upstream: &str) -> bool {
@@ -555,12 +567,18 @@ impl<'a> DockerComposeGenerator<'a> {
         upstream.contains("192.")
             || upstream.contains("10.")
             || upstream.contains("172.")
+            || upstream.contains("100.")  // Tailscale IP range
             || upstream.contains(".com")
             || upstream.contains(".net")
             || upstream.contains(".org")
-            || upstream.contains("://")
+            || (upstream.contains("://")
                 && !upstream.contains("://internal-")
-                && !upstream.contains("http://internal-service")
+                && !upstream.contains("http://internal-service"))
+    }
+
+    /// Check if configuration has any nginx proxies
+    fn has_nginx_proxy(&self) -> bool {
+        self.config.proxies.iter().any(|proxy| proxy.proxy_type == ProxyType::Nginx)
     }
 
     /// Validate a Docker Compose file

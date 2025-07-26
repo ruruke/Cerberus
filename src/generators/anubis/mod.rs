@@ -159,6 +159,7 @@ impl<'a> AnubisGenerator<'a> {
             "ANUBIS_CHALLENGE_TTL=3600".to_string(),
             "ANUBIS_RATE_LIMIT_WINDOW=60".to_string(),
             "ANUBIS_MAX_CHALLENGE_ATTEMPTS=3".to_string(),
+            "USE_REMOTE_ADDRESS=true".to_string(),
         ];
 
         Ok(env_vars)

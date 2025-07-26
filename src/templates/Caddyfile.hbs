@@ -6,6 +6,10 @@
 	# Global options
 	auto_https off
 	admin off
+	
+	# Global metrics configuration (new way)
+	metrics
+	
 	log {
 		output file /var/log/caddy/{{proxy.name}}.log
 		format json
@@ -26,8 +30,44 @@
 		close
 	}
 
-	# Metrics endpoint (if enabled)
-	respond /metrics/* 404
+	# Metrics endpoint for Prometheus scraping (with basic auth)
+	handle /metrics {
+		basic_auth {
+			admin $2a$14$hNf8.tD2zI.sV8X6eLzGD.wDjN8LgZ9K0P7mOeG4Jy.Xv1xD5nCqe
+		}
+		metrics
+	}
+	
+	# Tracing for observability
+	tracing {
+		span {{proxy.name}}-proxy
+	}
+	
+	# Security matchers
+	@blocked_ips remote_ip 192.168.1.100/32 10.0.0.0/8
+	@trusted_ips remote_ip private_ranges
+	@suspicious_agents {
+		header User-Agent "*bot*"
+		header User-Agent "*crawler*"
+		header User-Agent "*scraper*"
+	}
+	
+	# Block suspicious requests
+	handle @suspicious_agents {
+		respond "Access Denied" 403
+	}
+	
+	# Admin path protection (example)
+	handle /admin* {
+		@admin_access remote_ip private_ranges
+		handle @admin_access {
+			basic_auth {
+				admin $2a$14$hNf8.tD2zI.sV8X6eLzGD.wDjN8LgZ9K0P7mOeG4Jy.Xv1xD5nCqe
+			}
+			reverse_proxy localhost:8080
+		}
+		respond "Admin access restricted" 403
+	}
 
 {{#if has_services}}
 	# Service routing
@@ -38,14 +78,12 @@
 		reverse_proxy {{upstream}} {
 			header_up Host {upstream_hostport}
 			header_up X-Real-IP {remote}
-			header_up X-Forwarded-For {remote}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Forwarded-Host {host}
+			# Caddy automatically handles X-Forwarded headers
 			
-			# Health check
-			health_uri /health
-			health_interval 30s
-			health_timeout 10s
+			# Disable health check (many services don't have /health endpoint)
+			# health_uri /health
+			# health_interval 30s
+			# health_timeout 10s
 			
 			# Load balancing
 			lb_policy round_robin
@@ -63,14 +101,12 @@
 	reverse_proxy {{upstream}} {
 		header_up Host {upstream_hostport}
 		header_up X-Real-IP {remote}
-		header_up X-Forwarded-For {remote}
-		header_up X-Forwarded-Proto {scheme}
-		header_up X-Forwarded-Host {host}
+		# Caddy automatically handles X-Forwarded headers
 		
-		# Health check
-		health_uri /health
-		health_interval 30s
-		health_timeout 10s
+		# Disable health check for Anubis (it requires X-Real-IP header)
+		# health_uri /health
+		# health_interval 30s
+		# health_timeout 10s
 		
 		# Load balancing
 		lb_policy round_robin
@@ -80,6 +116,13 @@
 		lb_try_interval 250ms
 	}
 
+	# Static file caching and serving
+	@static path *.css *.js *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff *.woff2 *.ttf *.eot
+	handle @static {
+		header Cache-Control "public, max-age=31536000"
+		header Vary "Accept-Encoding"
+	}
+	
 	# Security headers
 	header {
 		# HSTS
@@ -97,18 +140,18 @@
 		# Referrer policy
 		Referrer-Policy "strict-origin-when-cross-origin"
 		
+		# Content Security Policy (basic)
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+		
 		# Remove server header
 		-Server
+		
+		# Performance headers
+		X-Frame-Options "SAMEORIGIN"
+		Timing-Allow-Origin "*"
 	}
 
-	# Rate limiting (basic)
-	rate_limit {
-		zone static_files {
-			key {remote}
-			events 100
-			window 1m
-		}
-	}
+	# Rate limiting would require third-party plugins
 
 	# Compression
 	encode gzip zstd

@@ -863,6 +863,10 @@ pub struct ProxyConfig {
     /// Labels
     #[serde(default)]
     pub labels: std::collections::HashMap<String, String>,
+
+    /// Service name requiring special routing (e.g., "misskey")
+    #[serde(default)]
+    pub special_routing_service: Option<String>,
 }
 
 fn default_internal_port() -> u16 {

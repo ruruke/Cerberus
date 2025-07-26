@@ -149,15 +149,8 @@ impl<'a> UpdateScriptGenerator<'a> {
         script.push_str("    log_info \"Checking for port conflicts...\"\n");
         script.push_str("    \n");
         script.push_str("    local conflicts=0\n");
-        if let Some(anubis) = &self.config.anubis {
-            if anubis.enabled {
-                script.push_str("    # Check Anubis ports\n");
-                script.push_str("    if netstat -tlnp 2>/dev/null | grep -q ':8080\\|:9090'; then\n");
-                script.push_str("        log_warning \"Port 8080 or 9090 already in use (Anubis ports)\"\n");
-                script.push_str("        netstat -tlnp 2>/dev/null | grep ':8080\\|:9090' || true\n");
-                script.push_str("        conflicts=1\n");
-                script.push_str("    fi\n");
-            }
+        if self.config.anubis.enabled {
+            script.push_str("    # Note: Anubis ports are not exposed externally\n");
         }
         
         for proxy in &self.config.proxies {

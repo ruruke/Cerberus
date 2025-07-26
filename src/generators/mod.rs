@@ -125,12 +125,31 @@ impl<'a> CerberusGenerator<'a> {
         let generator = ProxyConfigGenerator::new(self.config);
         
         for proxy in &self.config.proxies {
-            let config_content = generator.generate_for_proxy(proxy)?;
-            let config_file = ProxyConfigGenerator::get_file_extension(proxy.proxy_type.as_str());
-            let file_path = format!("{}/proxy-configs/{}/{}", self.output_dir, proxy.name, config_file);
-            
-            fs::write(&file_path, config_content).await?;
-            tracing::info!("Generated {} config: {}", proxy.proxy_type, file_path);
+            match proxy.proxy_type.as_str() {
+                "nginx" => {
+                    // Generate multiple Nginx config files
+                    let configs = generator.generate_nginx_configs(proxy)?;
+                    for (filename, content) in configs {
+                        let file_path = format!("{}/proxy-configs/{}/conf.d/{}", self.output_dir, proxy.name, filename);
+                        
+                        // Create conf.d directory if it doesn't exist
+                        let conf_dir = format!("{}/proxy-configs/{}/conf.d", self.output_dir, proxy.name);
+                        fs::create_dir_all(&conf_dir).await?;
+                        
+                        fs::write(&file_path, content).await?;
+                        tracing::info!("Generated nginx config: {}", file_path);
+                    }
+                },
+                _ => {
+                    // Generate single config file for other proxy types
+                    let config_content = generator.generate_for_proxy(proxy)?;
+                    let config_file = ProxyConfigGenerator::get_file_extension(proxy.proxy_type.as_str());
+                    let file_path = format!("{}/proxy-configs/{}/{}", self.output_dir, proxy.name, config_file);
+                    
+                    fs::write(&file_path, config_content).await?;
+                    tracing::info!("Generated {} config: {}", proxy.proxy_type, file_path);
+                }
+            }
         }
         
         Ok(())
@@ -173,6 +192,17 @@ impl<'a> CerberusGenerator<'a> {
         let env_path = format!("{}/anubis/.env", self.output_dir);
         fs::write(&env_path, env_content).await?;
         tracing::info!("Generated Anubis environment: {}", env_path);
+        
+        Ok(())
+    }
+
+    /// Generate update script
+    async fn generate_update_script(&self) -> Result<()> {
+        let generator = UpdateScriptGenerator::new(self.config);
+        let output_path = Path::new(&self.output_dir);
+        
+        generator.generate(output_path)?;
+        tracing::info!("Generated update script: {}/update.sh", self.output_dir);
         
         Ok(())
     }

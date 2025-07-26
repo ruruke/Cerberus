@@ -21,13 +21,37 @@ impl<'a> ProxyConfigGenerator<'a> {
     pub fn new(config: &'a Config) -> Self {
         let mut handlebars = Handlebars::new();
         
+        // Register helper for string equality
+        handlebars.register_helper("eq", Box::new(|h: &handlebars::Helper, _: &Handlebars, _: &handlebars::Context, _: &mut handlebars::RenderContext, out: &mut dyn handlebars::Output| -> handlebars::HelperResult {
+            let param0 = h.param(0).and_then(|v| v.value().as_str()).unwrap_or("");
+            let param1 = h.param(1).and_then(|v| v.value().as_str()).unwrap_or("");
+            let result = param0 == param1;
+            out.write(if result { "true" } else { "" })?;
+            Ok(())
+        }));
+        
+        // Register helper for string starts_with
+        handlebars.register_helper("starts_with", Box::new(|h: &handlebars::Helper, _: &Handlebars, _: &handlebars::Context, _: &mut handlebars::RenderContext, out: &mut dyn handlebars::Output| -> handlebars::HelperResult {
+            let param0 = h.param(0).and_then(|v| v.value().as_str()).unwrap_or("");
+            let param1 = h.param(1).and_then(|v| v.value().as_str()).unwrap_or("");
+            let result = param0.starts_with(param1);
+            out.write(if result { "true" } else { "" })?;
+            Ok(())
+        }));
+        
         // Register Caddy template
         handlebars.register_template_string("caddy", include_str!("../templates/Caddyfile.hbs"))
             .expect("Failed to register Caddy template");
             
-        // Register Nginx template
-        handlebars.register_template_string("nginx", include_str!("../templates/nginx.conf.hbs"))
-            .expect("Failed to register Nginx template");
+        // Register Nginx templates
+        handlebars.register_template_string("nginx_default", include_str!("../templates/nginx/default.conf.hbs"))
+            .expect("Failed to register Nginx default template");
+        handlebars.register_template_string("nginx_proxy2", include_str!("../templates/nginx/proxy2.conf.hbs"))
+            .expect("Failed to register Nginx proxy2 template");
+        handlebars.register_template_string("nginx_service", include_str!("../templates/nginx/service.conf.hbs"))
+            .expect("Failed to register Nginx service template");
+        handlebars.register_template_string("nginx_proxy_params", include_str!("../templates/nginx/proxy_params.conf.hbs"))
+            .expect("Failed to register Nginx proxy_params template");
             
         // Register HAProxy template
         handlebars.register_template_string("haproxy", include_str!("../templates/haproxy.cfg.hbs"))
@@ -51,6 +75,61 @@ impl<'a> ProxyConfigGenerator<'a> {
                 format!("Unsupported proxy type: {}", proxy.proxy_type)
             )),
         }
+    }
+
+    /// Generate multiple Nginx configuration files
+    pub fn generate_nginx_configs(&self, proxy: &ProxyConfig) -> Result<HashMap<String, String>> {
+        let mut configs = HashMap::new();
+        
+        let services = self.get_services_for_proxy(proxy);
+        
+        // Check proxy layer to determine configuration type
+        let is_proxy_layer_1 = proxy.layer.unwrap_or(1) == 1;
+        
+        if is_proxy_layer_1 {
+            // Proxy Layer 1: Domain routing to anubis or proxy-2
+            let special_service_name = proxy.special_routing_service.as_deref().unwrap_or("misskey");
+            let special_service = services.iter().find(|s| s.name == special_service_name);
+            let regular_services: Vec<_> = services.iter().filter(|s| s.name != special_service_name).collect();
+            
+            let template_data = json!({
+                "proxy": proxy,
+                "services": regular_services,
+                "special_service": special_service,
+                "special_service_name": special_service_name,
+                "project_name": &self.config.project.name,
+                "external_port": proxy.internal_port,
+                "default_upstream": proxy.default_upstream.as_deref().unwrap_or("proxy-2:80"),
+                "has_services": !regular_services.is_empty(),
+                "anubis_enabled": self.config.anubis.enabled,
+            });
+
+            // Generate default.conf for proxy-1
+            let default_conf = self.handlebars.render("nginx_default", &template_data)?;
+            configs.insert("default.conf".to_string(), default_conf);
+        } else {
+            // Proxy Layer 2: Generate individual config files for each service
+            for service in &services {
+                let template_data = json!({
+                    "service": service,
+                    "project_name": &self.config.project.name,
+                    "external_port": proxy.internal_port,
+                });
+
+                let service_conf = self.handlebars.render("nginx_service", &template_data)?;
+                let filename = format!("{}.conf", service.name.replace("-", "_"));
+                configs.insert(filename, service_conf);
+            }
+        }
+
+        // Generate proxy_params.conf (shared for all proxy types)
+        let proxy_params_data = json!({
+            "project_name": &self.config.project.name,
+        });
+        let proxy_params_conf = self.handlebars.render("nginx_proxy_params", &proxy_params_data)?;
+        configs.insert("proxy_params.conf".to_string(), proxy_params_conf);
+
+        Ok(configs)
     }
 
     /// Generate Caddy configuration

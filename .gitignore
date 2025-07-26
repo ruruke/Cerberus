@@ -2,6 +2,9 @@
 built/
 *.generated.*
 
+# Old reference files (used during development)
+old/
+
 # Logs
 logs/
 **/*.log
