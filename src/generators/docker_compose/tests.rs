@@ -13,7 +13,7 @@ fn create_test_proxy(name: &str, proxy_type: ProxyType, external_port: u16) -> P
     ProxyConfig {
         name: name.to_string(),
         proxy_type,
-        external_port,
+        external_port: Some(external_port),
         internal_port: 80,
         layer: Some(1),
         instances: 1,

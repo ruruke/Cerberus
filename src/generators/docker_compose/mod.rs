@@ -93,19 +93,23 @@ impl<'a> DockerComposeGenerator<'a> {
         .unwrap();
         writeln!(output, "    container_name: {}", proxy.name).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
-        writeln!(output, "    ports:").unwrap();
-        // ポート重複を避けるために、インデックスベースで自動調整
-        let adjusted_port = if index == 0 {
-            proxy.external_port
-        } else {
-            proxy.external_port + index as u16 * 10
-        };
-        writeln!(
-            output,
-            "      - \"{}:{}\"",
-            adjusted_port, proxy.internal_port
-        )
-        .unwrap();
+        
+        // ポート設定（external_portがある場合のみ）
+        if let Some(external_port) = proxy.external_port {
+            writeln!(output, "    ports:").unwrap();
+            // ポート重複を避けるために、インデックスベースで自動調整
+            let adjusted_port = if index == 0 {
+                external_port
+            } else {
+                external_port + index as u16 * 10
+            };
+            writeln!(
+                output,
+                "      - \"{}:{}\"",
+                adjusted_port, proxy.internal_port
+            )
+            .unwrap();
+        }
         writeln!(output, "    volumes:").unwrap();
         writeln!(
             output,
@@ -189,14 +193,18 @@ impl<'a> DockerComposeGenerator<'a> {
         .unwrap();
         writeln!(output, "    container_name: {}-{}", proxy.name, instance).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
-        writeln!(output, "    ports:").unwrap();
-        writeln!(
-            output,
-            "      - \"{}:{}\"",
-            proxy.external_port + instance as u16 - 1,
-            proxy.internal_port
-        )
-        .unwrap();
+        
+        // ポート設定（external_portがある場合のみ）
+        if let Some(external_port) = proxy.external_port {
+            writeln!(output, "    ports:").unwrap();
+            writeln!(
+                output,
+                "      - \"{}:{}\"",
+                external_port + instance as u16 - 1,
+                proxy.internal_port
+            )
+            .unwrap();
+        }
         writeln!(output, "    volumes:").unwrap();
         writeln!(
             output,

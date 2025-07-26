@@ -764,8 +764,9 @@ pub struct ProxyConfig {
     #[serde(rename = "type")]
     pub proxy_type: ProxyType,
 
-    /// External port exposed to internet
-    pub external_port: u16,
+    /// External port exposed to internet (None = no port mapping)
+    #[serde(default)]
+    pub external_port: Option<u16>,
 
     /// Internal container port
     #[serde(default = "default_internal_port")]
@@ -986,11 +987,13 @@ impl Config {
                 )));
             }
 
-            if proxy.external_port == 0 {
-                return Err(CerberusError::validation(format!(
-                    "Proxy {} external_port must be greater than 0",
-                    proxy.name
-                )));
+            if let Some(port) = proxy.external_port {
+                if port == 0 {
+                    return Err(CerberusError::validation(format!(
+                        "Proxy {} external_port must be greater than 0",
+                        proxy.name
+                    )));
+                }
             }
 
             if proxy.instances == 0 {

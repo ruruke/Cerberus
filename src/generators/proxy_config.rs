@@ -61,7 +61,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             "proxy": proxy,
             "services": services,
             "project_name": &self.config.project.name,
-            "external_port": proxy.external_port,
+            "external_port": proxy.external_port.unwrap_or(proxy.internal_port),
             "upstream": proxy.default_upstream.as_deref().unwrap_or("http://localhost:3000"),
             "has_services": !services.is_empty(),
             "has_anubis": self.config.anubis.enabled,
@@ -80,7 +80,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             "proxy": proxy,
             "services": services,
             "project_name": &self.config.project.name,
-            "external_port": proxy.external_port,
+            "external_port": proxy.external_port.unwrap_or(proxy.internal_port),
             "upstream": proxy.default_upstream.as_deref().unwrap_or("http://localhost:3000"),
             "has_services": !services.is_empty(),
             "worker_processes": "auto",
@@ -101,7 +101,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             "proxy": proxy,
             "services": services,
             "project_name": &self.config.project.name,
-            "external_port": proxy.external_port,
+            "external_port": proxy.external_port.unwrap_or(proxy.internal_port),
             "upstream": proxy.default_upstream.as_deref().unwrap_or("http://localhost:3000"),
             "has_services": !services.is_empty(),
             "maxconn": 4096,
@@ -122,7 +122,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             "proxy": proxy,
             "services": services,
             "project_name": &self.config.project.name,
-            "external_port": proxy.external_port,
+            "external_port": proxy.external_port.unwrap_or(proxy.internal_port),
             "upstream": proxy.default_upstream.as_deref().unwrap_or("http://localhost:3000"),
             "has_services": !services.is_empty(),
         });
@@ -196,7 +196,11 @@ impl<'a> ProxyConfigGenerator<'a> {
             _ => vec![],
         };
 
-        let ports = vec![format!("{}:{}", proxy.external_port, proxy.external_port)];
+        let ports = if let Some(port) = proxy.external_port {
+            vec![format!("{}:{}", port, port)]
+        } else {
+            vec![]
+        };
 
         let service = serde_yaml::to_value(&json!({
             "image": docker_image,
@@ -206,7 +210,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             "volumes": volumes,
             "networks": ["cerberus-network"],
             "healthcheck": {
-                "test": format!("wget --quiet --tries=1 --spider http://localhost:{}/health || exit 1", proxy.external_port),
+                "test": format!("wget --quiet --tries=1 --spider http://localhost:{}/health || exit 1", proxy.external_port.unwrap_or(proxy.internal_port)),
                 "interval": "30s",
                 "timeout": "10s",
                 "retries": 3,

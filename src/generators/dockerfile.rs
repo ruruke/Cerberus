@@ -61,7 +61,7 @@ impl<'a> DockerfileGenerator<'a> {
             "config_file": "Caddyfile",
             "config_path": "/etc/caddy/Caddyfile",
             "log_path": "/var/log/caddy",
-            "port": proxy.external_port,
+            "port": proxy.external_port.unwrap_or(proxy.internal_port),
         });
 
         let dockerfile = self.handlebars.render("caddy_dockerfile", &template_data)?;
@@ -79,7 +79,7 @@ impl<'a> DockerfileGenerator<'a> {
             "config_file": "nginx.conf",
             "config_path": "/etc/nginx/nginx.conf",
             "log_path": "/var/log/nginx",
-            "port": proxy.external_port,
+            "port": proxy.external_port.unwrap_or(proxy.internal_port),
         });
 
         let dockerfile = self.handlebars.render("nginx_dockerfile", &template_data)?;
@@ -97,7 +97,7 @@ impl<'a> DockerfileGenerator<'a> {
             "config_file": "haproxy.cfg",
             "config_path": "/usr/local/etc/haproxy/haproxy.cfg",
             "log_path": "/var/log/haproxy",
-            "port": proxy.external_port,
+            "port": proxy.external_port.unwrap_or(proxy.internal_port),
         });
 
         let dockerfile = self.handlebars.render("haproxy_dockerfile", &template_data)?;
@@ -115,7 +115,7 @@ impl<'a> DockerfileGenerator<'a> {
             "config_file": "traefik.yml",
             "config_path": "/etc/traefik/traefik.yml",
             "log_path": "/var/log/traefik",
-            "port": proxy.external_port,
+            "port": proxy.external_port.unwrap_or(proxy.internal_port),
         });
 
         let dockerfile = self.handlebars.render("traefik_dockerfile", &template_data)?;
@@ -186,12 +186,20 @@ impl<'a> DockerfileGenerator<'a> {
                 "COPY --from=config /config/{}/ {}\n",
                 proxy.name, config_path
             ));
-            dockerfile.push_str(&format!("EXPOSE {}\n", proxy.external_port));
-            dockerfile.push_str("HEALTHCHECK --interval=30s --timeout=10s --retries=3 \\\n");
-            dockerfile.push_str(&format!(
-                "  CMD curl -f http://localhost:{}/health || exit 1\n",
-                proxy.external_port
-            ));
+            if let Some(port) = proxy.external_port {
+                dockerfile.push_str(&format!("EXPOSE {}\n", port));
+                dockerfile.push_str("HEALTHCHECK --interval=30s --timeout=10s --retries=3 \\\n");
+                dockerfile.push_str(&format!(
+                    "  CMD curl -f http://localhost:{}/health || exit 1\n",
+                    port
+                ));
+            } else {
+                dockerfile.push_str("HEALTHCHECK --interval=30s --timeout=10s --retries=3 \\\n");
+                dockerfile.push_str(&format!(
+                    "  CMD curl -f http://localhost:{}/health || exit 1\n",
+                    proxy.internal_port
+                ));
+            }
             dockerfile.push_str("\n");
         }
         

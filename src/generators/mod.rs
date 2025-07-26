@@ -41,7 +41,8 @@ impl<'a> CerberusGenerator<'a> {
 
     /// Generate all configurations asynchronously
     pub async fn generate_all(&self) -> Result<()> {
-        // Create output directories
+        // Clean and create output directories
+        self.clean_directories().await?;
         self.create_directories().await?;
         
         // Generate Docker Compose
@@ -59,6 +60,15 @@ impl<'a> CerberusGenerator<'a> {
         }
         
         tracing::info!("All configurations generated successfully");
+        Ok(())
+    }
+
+    /// Clean output directories
+    async fn clean_directories(&self) -> Result<()> {
+        if Path::new(&self.output_dir).exists() {
+            fs::remove_dir_all(&self.output_dir).await?;
+            tracing::info!("Cleaned output directory: {}", self.output_dir);
+        }
         Ok(())
     }
 

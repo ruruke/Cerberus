@@ -41,7 +41,7 @@ upstream = "http://192.0.2.1:3000"
     assert_eq!(config.proxies.len(), 1);
     assert_eq!(config.proxies[0].name, "simple-proxy");
     assert_eq!(config.proxies[0].proxy_type, ProxyType::Caddy);
-    assert_eq!(config.proxies[0].external_port, 80);
+    assert_eq!(config.proxies[0].external_port, Some(80));
     assert_eq!(config.services.len(), 1);
     assert_eq!(config.services[0].name, "web-service");
     assert_eq!(config.services[0].domain, "example.com");
@@ -801,7 +801,7 @@ failure_action = "rollback"
     
     // Check proxy configuration
     assert_eq!(proxy.name, "web-proxy");
-    assert_eq!(proxy.external_port, 80);
+    assert_eq!(proxy.external_port, Some(80));
     assert_eq!(proxy.build_context.as_ref().unwrap(), "./nginx");
     assert_eq!(proxy.restart.as_ref().unwrap(), "unless-stopped");
     
