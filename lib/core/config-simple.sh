@@ -32,9 +32,12 @@ config_load() {
     log_info "Loading configuration from: $config_file"
     
     local current_section=""
+    local line_number=0
     declare -A array_table_counters
     
     while IFS= read -r line || [[ -n "$line" ]]; do
+        ((line_number++))
+        
         # Remove comments and trim
         line="${line%%#*}"
         line=$(trim "$line")
@@ -46,13 +49,22 @@ config_load() {
         if [[ "$line" =~ ^\[\[([^\]]+)\]\]$ ]]; then
             # Array table
             local section="${BASH_REMATCH[1]}"
+            if [[ -z "$section" ]]; then
+                log_error "Invalid array table syntax at line $line_number: $line"
+                return 1
+            fi
             local count="${array_table_counters[$section]:-0}"
             current_section="${section}.${count}"
             array_table_counters["$section"]=$((count + 1))
             continue
         elif [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
             # Regular section
-            current_section="${BASH_REMATCH[1]}"
+            local section="${BASH_REMATCH[1]}"
+            if [[ -z "$section" ]]; then
+                log_error "Invalid section syntax at line $line_number: $line"
+                return 1
+            fi
+            current_section="$section"
             continue
         fi
         
@@ -63,6 +75,12 @@ config_load() {
             
             key=$(trim "$key")
             value=$(trim "$value")
+            
+            # Validate key
+            if [[ -z "$key" ]]; then
+                log_error "Empty key at line $line_number: $line"
+                return 1
+            fi
             
             # Remove quotes from strings
             if [[ "$value" =~ ^\"(.*)\"$ ]]; then
@@ -76,11 +94,14 @@ config_load() {
             fi
             
             CONFIG_CACHE["$full_key"]="$value"
+        elif [[ -n "$line" ]]; then
+            # Non-empty line that doesn't match expected patterns
+            log_warn "Unrecognized syntax at line $line_number: $line"
         fi
     done < "$config_file"
     
     CONFIG_LOADED=true
-    log_info "Configuration loaded successfully"
+    log_info "Configuration loaded successfully (${#CONFIG_CACHE[@]} keys loaded)"
 }
 
 # Check if configuration is loaded

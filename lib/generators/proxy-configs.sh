@@ -330,75 +330,115 @@ generate_caddy_routing_config() {
     local listen_port="$3"
     local prefix="proxies.${index}"
     
-    # Get default upstream and routes
+    # Get default upstream
     local default_upstream
     default_upstream=$(config_get_string "${prefix}.default_upstream" "")
     
-    # Generate service-specific routing
+    # Generate routing for each service domain
     local service_count
     service_count=$(config_get_array_table_count "services")
     
     for ((j=0; j<service_count; j++)); do
-        local service_prefix="services.${j}"
-        local domain upstream
-        domain=$(config_get_string "${service_prefix}.domain")
-        upstream=$(config_get_string "${service_prefix}.upstream")
+        local domain
+        domain=$(config_get_string "services.${j}.domain")
         
         if [[ -z "$domain" ]]; then
             continue
         fi
         
-        # Check if there's a specific route for this domain
-        local route_upstream=""
-        local route_type=""
-        local bypass_paths=()
+        # Find and apply routing configuration for this domain
+        apply_domain_routing "$domain" "$listen_port" "$default_upstream" "$caddyfile"
+    done
+}
+
+# Apply routing configuration for a specific domain
+apply_domain_routing() {
+    local domain="$1"
+    local listen_port="$2"
+    local default_upstream="$3"
+    local caddyfile="$4"
+    
+    # Find matching route configuration
+    local route_config
+    route_config=$(find_route_config "$domain")
+    
+    if [[ -n "$route_config" ]]; then
+        # Parse route configuration
+        local route_type route_upstream
+        route_type=$(echo "$route_config" | cut -d'|' -f1)
+        route_upstream=$(echo "$route_config" | cut -d'|' -f2)
         
-        # Check proxy routes (routes are stored as separate array table)
-        local route_count
-        route_count=$(config_get_array_table_count "proxies.routes")
-        
-        for ((k=0; k<route_count; k++)); do
-            local route_domain
-            route_domain=$(config_get_string "proxies.routes.${k}.domain")
-            
-            if [[ "$route_domain" == "$domain" ]]; then
-                route_type=$(config_get_string "proxies.routes.${k}.type")
-                route_upstream=$(config_get_string "proxies.routes.${k}.upstream")
+        case "$route_type" in
+            "direct")
+                generate_caddy_direct_routing "$domain" "$listen_port" "$route_upstream" >> "$caddyfile"
+                ;;
+            "conditional")
+                local bypass_upstream default_route_upstream bypass_paths_str
+                bypass_upstream=$(echo "$route_config" | cut -d'|' -f3)
+                default_route_upstream=$(echo "$route_config" | cut -d'|' -f4)
+                bypass_paths_str=$(echo "$route_config" | cut -d'|' -f5)
                 
-                # Handle conditional routing (for Misskey)
-                if [[ "$route_type" == "conditional" ]]; then
-                    local bypass_upstream default_route_upstream
-                    bypass_upstream=$(config_get_string "proxies.routes.${k}.bypass_upstream")
-                    default_route_upstream=$(config_get_string "proxies.routes.${k}.default_upstream")
-                    
-                    # Parse bypass paths
-                    local bypass_paths_str
-                    bypass_paths_str=$(config_get_string "proxies.routes.${k}.bypass_paths")
-                    if [[ -n "$bypass_paths_str" ]]; then
-                        # Remove brackets and split by comma
-                        bypass_paths_str="${bypass_paths_str#[}"
-                        bypass_paths_str="${bypass_paths_str%]}"
-                        IFS=',' read -ra bypass_paths <<< "$bypass_paths_str"
-                        # Clean up paths (remove quotes and spaces)
-                        for i in "${!bypass_paths[@]}"; do
-                            bypass_paths[i]=$(echo "${bypass_paths[i]}" | sed 's/^[[:space:]]*"//;s/"[[:space:]]*$//')
-                        done
-                    fi
-                    
-                    generate_caddy_conditional_routing "$domain" "$listen_port" "$bypass_upstream" "$default_route_upstream" "${bypass_paths[@]}" >> "$caddyfile"
-                else
-                    # Direct routing
-                    generate_caddy_direct_routing "$domain" "$listen_port" "$route_upstream" >> "$caddyfile"
-                fi
-                break
-            fi
-        done
+                # Parse bypass paths
+                local bypass_paths=()
+                parse_bypass_paths "$bypass_paths_str" bypass_paths
+                
+                generate_caddy_conditional_routing "$domain" "$listen_port" "$bypass_upstream" "$default_route_upstream" "${bypass_paths[@]}" >> "$caddyfile"
+                ;;
+        esac
+    elif [[ -n "$default_upstream" ]]; then
+        # Use default upstream if no specific route found
+        generate_caddy_direct_routing "$domain" "$listen_port" "$default_upstream" >> "$caddyfile"
+    fi
+}
+
+# Find route configuration for a domain
+find_route_config() {
+    local domain="$1"
+    local route_count
+    route_count=$(config_get_array_table_count "proxies.routes")
+    
+    for ((k=0; k<route_count; k++)); do
+        local route_domain
+        route_domain=$(config_get_string "proxies.routes.${k}.domain")
         
-        # If no specific route found, use default upstream
-        if [[ -z "$route_upstream" && -n "$default_upstream" ]]; then
-            generate_caddy_direct_routing "$domain" "$listen_port" "$default_upstream" >> "$caddyfile"
+        if [[ "$route_domain" == "$domain" ]]; then
+            local route_type route_upstream
+            route_type=$(config_get_string "proxies.routes.${k}.type")
+            route_upstream=$(config_get_string "proxies.routes.${k}.upstream")
+            
+            if [[ "$route_type" == "conditional" ]]; then
+                local bypass_upstream default_route_upstream bypass_paths_str
+                bypass_upstream=$(config_get_string "proxies.routes.${k}.bypass_upstream")
+                default_route_upstream=$(config_get_string "proxies.routes.${k}.default_upstream")
+                bypass_paths_str=$(config_get_string "proxies.routes.${k}.bypass_paths")
+                
+                echo "conditional|${route_upstream}|${bypass_upstream}|${default_route_upstream}|${bypass_paths_str}"
+            else
+                echo "direct|${route_upstream}"
+            fi
+            return 0
         fi
     done
+    
+    return 1
+}
+
+# Parse bypass paths from string format
+parse_bypass_paths() {
+    local bypass_paths_str="$1"
+    local -n bypass_paths_ref=$2
+    
+    if [[ -n "$bypass_paths_str" ]]; then
+        # Remove brackets and split by comma
+        bypass_paths_str="${bypass_paths_str#[}"
+        bypass_paths_str="${bypass_paths_str%]}"
+        IFS=',' read -ra bypass_paths_ref <<< "$bypass_paths_str"
+        
+        # Clean up paths (remove quotes and spaces)
+        for i in "${!bypass_paths_ref[@]}"; do
+            bypass_paths_ref[i]=$(echo "${bypass_paths_ref[i]}" | sed 's/^[[:space:]]*"//;s/"[[:space:]]*$//')
+        done
+    fi
 }
 
 # Generate direct routing configuration
@@ -488,18 +528,56 @@ generate_caddy_service_config() {
     local listen_port="$3"
     local prefix="services.${service_index}"
     
-    local name domain upstream websocket compress max_body_size
+    # Get service configuration
+    local service_config
+    service_config=$(get_service_config "$prefix")
+    
+    if [[ -z "$service_config" ]]; then
+        return 0
+    fi
+    
+    # Parse service configuration
+    local name domain upstream websocket compress
+    name=$(echo "$service_config" | cut -d'|' -f1)
+    domain=$(echo "$service_config" | cut -d'|' -f2)  
+    upstream=$(echo "$service_config" | cut -d'|' -f3)
+    websocket=$(echo "$service_config" | cut -d'|' -f4)
+    compress=$(echo "$service_config" | cut -d'|' -f5)
+    
+    # Generate service block
+    generate_caddy_service_block "$name" "$domain" "$upstream" "$listen_port" "$websocket" "$compress" "$prefix" "$caddyfile"
+}
+
+# Get service configuration as pipe-separated values
+get_service_config() {
+    local prefix="$1"
+    
+    local name domain upstream websocket compress
     name=$(config_get_string "${prefix}.name")
     domain=$(config_get_string "${prefix}.domain")
     upstream=$(config_get_string "${prefix}.upstream")
     websocket=$(config_get_bool "${prefix}.websocket")
     compress=$(config_get_bool "${prefix}.compress" "true")
-    max_body_size=$(config_get_string "${prefix}.max_body_size" "1m")
     
     if [[ -z "$name" || -z "$domain" || -z "$upstream" ]]; then
-        return 0
+        return 1
     fi
     
+    echo "${name}|${domain}|${upstream}|${websocket}|${compress}"
+}
+
+# Generate complete Caddy service block
+generate_caddy_service_block() {
+    local name="$1"
+    local domain="$2"
+    local upstream="$3"
+    local listen_port="$4"
+    local websocket="$5"
+    local compress="$6"
+    local prefix="$7"
+    local caddyfile="$8"
+    
+    # Start service block
     cat >> "$caddyfile" << EOF
 
 # ${name} - ${domain}
@@ -519,29 +597,48 @@ ${domain}:${listen_port} {
     }
 EOF
 
-    # Add compression if enabled
+    # Add compression
+    add_caddy_compression "$compress" "$caddyfile"
+    
+    # Add reverse proxy with headers
+    add_caddy_reverse_proxy "$upstream" "$websocket" "$prefix" "$caddyfile"
+    
+    # Add custom response headers
+    add_caddy_response_headers "$prefix" "$caddyfile"
+    
+    # Close service block
+    echo "}" >> "$caddyfile"
+}
+
+# Add compression configuration
+add_caddy_compression() {
+    local compress="$1"
+    local caddyfile="$2"
+    
     if [[ "$compress" == "true" ]]; then
         echo "    encode gzip zstd" >> "$caddyfile"
     fi
+}
+
+# Add reverse proxy configuration with custom headers
+add_caddy_reverse_proxy() {
+    local upstream="$1"
+    local websocket="$2"
+    local prefix="$3"
+    local caddyfile="$4"
     
-    # Add reverse proxy
     echo "    reverse_proxy ${upstream} {" >> "$caddyfile"
+    
+    # Standard headers
     echo "        header_up Host {host}" >> "$caddyfile"
     echo "        header_up X-Real-IP {remote}" >> "$caddyfile"
     echo "        header_up X-Forwarded-For {remote}" >> "$caddyfile"
     echo "        header_up X-Forwarded-Proto {scheme}" >> "$caddyfile"
     
-    # Add custom request headers
-    if [[ -n "$(config_get_string "${prefix}.headers_request_host")" ]]; then
-        echo "        header_up Host \"$(config_get_string "${prefix}.headers_request_host")\"" >> "$caddyfile"
-    fi
-    if [[ -n "$(config_get_string "${prefix}.headers_request_x_forwarded_proto")" ]]; then
-        echo "        header_up X-Forwarded-Proto \"$(config_get_string "${prefix}.headers_request_x_forwarded_proto")\"" >> "$caddyfile"
-    fi
-    if [[ "$(config_get_string "${prefix}.headers_request_proxy")" == "" ]]; then
-        echo "        header_up -Proxy" >> "$caddyfile"
-    fi
+    # Custom request headers
+    add_caddy_request_headers "$prefix" "$caddyfile"
     
+    # WebSocket support
     if [[ "$websocket" == "true" ]]; then
         echo "        # WebSocket support" >> "$caddyfile"
         echo "        header_up Upgrade {http.request.header.Upgrade}" >> "$caddyfile"
@@ -549,27 +646,59 @@ EOF
     fi
     
     echo "    }" >> "$caddyfile"
+}
+
+# Add custom request headers
+add_caddy_request_headers() {
+    local prefix="$1"
+    local caddyfile="$2"
     
-    # Add custom response headers
-    local has_response_headers=false
-    if [[ -n "$(config_get_string "${prefix}.headers_response_cache_control")" ]]; then
-        if [[ "$has_response_headers" == "false" ]]; then
-            echo "    header {" >> "$caddyfile"
-            has_response_headers=true
-        fi
-        echo "        Cache-Control \"$(config_get_string "${prefix}.headers_response_cache_control")\"" >> "$caddyfile"
+    # Custom Host header
+    local custom_host
+    custom_host=$(config_get_string "${prefix}.headers_request_host")
+    if [[ -n "$custom_host" ]]; then
+        echo "        header_up Host \"${custom_host}\"" >> "$caddyfile"
     fi
-    if [[ -n "$(config_get_string "${prefix}.headers_response_pragma")" ]]; then
-        if [[ "$has_response_headers" == "false" ]]; then
-            echo "    header {" >> "$caddyfile"
-            has_response_headers=true
-        fi
-        echo "        Pragma \"$(config_get_string "${prefix}.headers_response_pragma")\"" >> "$caddyfile"
+    
+    # Custom X-Forwarded-Proto header
+    local custom_proto
+    custom_proto=$(config_get_string "${prefix}.headers_request_x_forwarded_proto")
+    if [[ -n "$custom_proto" ]]; then
+        echo "        header_up X-Forwarded-Proto \"${custom_proto}\"" >> "$caddyfile"
     fi
-    if [[ "$has_response_headers" == "true" ]]; then
+    
+    # Remove Proxy header if configured
+    local proxy_header
+    proxy_header=$(config_get_string "${prefix}.headers_request_proxy")
+    if [[ "$proxy_header" == "" ]]; then
+        echo "        header_up -Proxy" >> "$caddyfile"
+    fi
+}
+
+# Add custom response headers
+add_caddy_response_headers() {
+    local prefix="$1"
+    local caddyfile="$2"
+    
+    local has_headers=false
+    local cache_control pragma
+    cache_control=$(config_get_string "${prefix}.headers_response_cache_control")
+    pragma=$(config_get_string "${prefix}.headers_response_pragma")
+    
+    if [[ -n "$cache_control" || -n "$pragma" ]]; then
+        echo "    header {" >> "$caddyfile"
+        has_headers=true
+        
+        if [[ -n "$cache_control" ]]; then
+            echo "        Cache-Control \"${cache_control}\"" >> "$caddyfile"
+        fi
+        
+        if [[ -n "$pragma" ]]; then
+            echo "        Pragma \"${pragma}\"" >> "$caddyfile"
+        fi
+        
         echo "    }" >> "$caddyfile"
     fi
-    echo "}" >> "$caddyfile"
 }
 
 # =============================================================================
