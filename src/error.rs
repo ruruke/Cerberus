@@ -137,12 +137,12 @@ impl From<handlebars::TemplateError> for CerberusError {
 
 impl From<serde_yaml::Error> for CerberusError {
     fn from(err: serde_yaml::Error) -> Self {
-        Self::config(format!("YAML error: {}", err))
+        Self::config(format!("YAML error: {err}"))
     }
 }
 
 impl From<serde_json::Error> for CerberusError {
     fn from(err: serde_json::Error) -> Self {
-        Self::config(format!("JSON error: {}", err))
+        Self::config(format!("JSON error: {err}"))
     }
 }

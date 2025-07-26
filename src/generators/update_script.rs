@@ -160,18 +160,16 @@ impl<'a> UpdateScriptGenerator<'a> {
 
         for proxy in &self.config.proxies {
             if let Some(port) = proxy.external_port {
-                script.push_str(&format!("    # Check proxy port {}\n", port));
+                script.push_str(&format!("    # Check proxy port {port}\n"));
                 script.push_str(&format!(
-                    "    if netstat -tlnp 2>/dev/null | grep -q ':{} '; then\n",
-                    port
+                    "    if netstat -tlnp 2>/dev/null | grep -q ':{port} '; then\n"
                 ));
                 script.push_str(&format!(
-                    "        log_warning \"Port {} already in use (proxy: {})\"\n",
-                    port, proxy.name
+                    "        log_warning \"Port {port} already in use (proxy: {})\"\n",
+                    proxy.name
                 ));
                 script.push_str(&format!(
-                    "        netstat -tlnp 2>/dev/null | grep ':{} ' || true\n",
-                    port
+                    "        netstat -tlnp 2>/dev/null | grep ':{port} ' || true\n"
                 ));
                 script.push_str("        conflicts=1\n");
                 script.push_str("    fi\n");

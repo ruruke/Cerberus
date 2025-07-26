@@ -233,8 +233,7 @@ impl<'a> CerberusGenerator<'a> {
                 Err(e) => {
                     tracing::error!("Docker Compose YAML validation failed: {}", e);
                     return Err(crate::CerberusError::config(format!(
-                        "Invalid Docker Compose YAML: {}",
-                        e
+                        "Invalid Docker Compose YAML: {e}"
                     )));
                 }
             }
@@ -249,8 +248,7 @@ impl<'a> CerberusGenerator<'a> {
                 Err(e) => {
                     tracing::error!("Anubis JSON validation failed: {}", e);
                     return Err(crate::CerberusError::config(format!(
-                        "Invalid Anubis JSON: {}",
-                        e
+                        "Invalid Anubis JSON: {e}"
                     )));
                 }
             }

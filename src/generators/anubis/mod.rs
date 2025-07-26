@@ -171,7 +171,7 @@ impl<'a> AnubisGenerator<'a> {
 
         let env_vars = self.generate_env_config()?;
 
-        let service = serde_yaml::to_value(&json!({
+        let service = serde_yaml::to_value(json!({
             "image": "ghcr.io/chaitin/anubis:latest",
             "container_name": "anubis",
             "restart": "unless-stopped",

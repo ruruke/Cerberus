@@ -221,7 +221,7 @@ impl<'a> DockerfileGenerator<'a> {
                     proxy.internal_port
                 ));
             }
-            dockerfile.push_str("\n");
+            dockerfile.push('\n');
         }
 
         // Final runtime stage

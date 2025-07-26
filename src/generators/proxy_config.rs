@@ -335,7 +335,7 @@ impl<'a> ProxyConfigGenerator<'a> {
             vec![]
         };
 
-        let service = serde_yaml::to_value(&json!({
+        let service = serde_yaml::to_value(json!({
             "image": docker_image,
             "container_name": &proxy.name,
             "restart": "unless-stopped",
