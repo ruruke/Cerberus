@@ -62,12 +62,12 @@ twitterbot = "*Twitterbot*"
 [[services]]
 name = "misskey"
 domain = "mi.example.com"
-upstream = "http://100.103.133.21:3000"
+upstream = "http://192.0.2.1:3000"
 
 [[services]]
 name = "media-proxy"
 domain = "media.example.com"
-upstream = "http://100.97.11.65:12766"
+upstream = "http://192.0.2.2:12766"
 EOF
 
 echo "1. Loading configuration..."

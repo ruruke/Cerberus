@@ -58,14 +58,14 @@ instances = 1
 [[services]]
 name = "misskey"
 domain = "mi.example.com"
-upstream = "http://100.103.133.21:3000"
+upstream = "http://192.0.2.1:3000"
 websocket = true
 max_body_size = "100m"
 
 [[services]]
 name = "media-proxy"
 domain = "media.example.com"
-upstream = "http://100.97.11.65:12766"
+upstream = "http://192.0.2.2:12766"
 websocket = false
 max_body_size = "1m"
 
