@@ -13,9 +13,40 @@ echo "1. Loading libraries..."
 source "${SCRIPT_DIR}/lib/core/utils.sh"
 source "${SCRIPT_DIR}/lib/core/config-simple.sh"
 
+# Create test directory and config
+mkdir -p "${SCRIPT_DIR}/tests/tmp"
+cat > "${SCRIPT_DIR}/tests/tmp/test-config.toml" << 'EOF'
+[project]
+name = "test-project"
+version = "1.0.0"
+scaling = true
+
+[[proxies]]
+name = "nginx-proxy"
+type = "nginx"
+external_port = 80
+internal_port = 80
+
+[[proxies]]
+name = "haproxy-main"
+type = "haproxy"
+external_port = 443
+internal_port = 443
+
+[anubis]
+enabled = true
+bind = ":8080"
+difficulty = 5
+
+[[services]]
+name = "web"
+domain = "test.local"
+upstream = "http://127.0.0.1:3000"
+EOF
+
 # Test 2: Load configuration
 echo "2. Loading test configuration..."
-config_load "tests/tmp/test-config.toml"
+config_load "${SCRIPT_DIR}/tests/tmp/test-config.toml"
 
 # Test 3: Basic access
 echo "3. Testing basic access..."
