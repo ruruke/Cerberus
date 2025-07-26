@@ -165,27 +165,22 @@ jobs:
       - name: Build Cerberus
         run: cargo build --release
 
-      - name: Test configuration patterns
+      - name: Test Rust configuration patterns
         run: |
-          # Test with old shell script comprehensive tests if available
-          if [ -f "old-sh/tests/test-all-config-patterns.sh" ]; then
-            echo "Running comprehensive configuration pattern tests..."
-            cd old-sh
-            chmod +x tests/test-all-config-patterns.sh
-            timeout 300 ./tests/test-all-config-patterns.sh || echo "Pattern tests completed with warnings"
-            cd ..
-          fi
+          echo "Testing comprehensive Rust configuration patterns..."
           
-          # Test basic config validation with Rust version
-          echo "Testing basic configuration validation..."
+          # Test 1: Minimal configuration
+          echo "Creating minimal configuration test..."
           cat > test-minimal.toml << 'EOF'
           [project]
-          name = "ci-test"
+          name = "ci-test-minimal"
+          scaling = false
           
           [[proxies]]
           name = "test-proxy"
-          type = "caddy"
+          proxy_type = "caddy"
           external_port = 80
+          upstream = "http://test-service:3000"
           
           [[services]]
           name = "test-service"
@@ -193,7 +188,76 @@ jobs:
           upstream = "http://192.0.2.1:3000"
           EOF
           
-          ./target/release/cerberus -c test-minimal.toml validate || echo "Config validation test completed"
+          echo "Validating minimal configuration..."
+          ./target/release/cerberus validate -c test-minimal.toml
+          
+          echo "Generating from minimal configuration..."
+          ./target/release/cerberus generate -c test-minimal.toml
+          
+          # Test 2: Complex configuration with Anubis
+          echo "Creating complex configuration test..."
+          cat > test-complex.toml << 'EOF'
+          [project]
+          name = "ci-test-complex"
+          scaling = true
+          
+          [anubis]
+          enabled = true
+          bind = ":8080"
+          target = "http://proxy-layer2:80"
+          difficulty = 5
+          metrics_bind = ":9090"
+          
+          [[proxies]]
+          name = "proxy-layer1"
+          proxy_type = "caddy"
+          external_port = 80
+          upstream = "http://anubis:8080"
+          instances = 2
+          
+          [[proxies]]
+          name = "proxy-layer2"
+          proxy_type = "caddy"
+          external_port = 8080
+          upstream = "http://backend-services"
+          instances = 3
+          
+          [[services]]
+          name = "misskey"
+          domain = "mi.example.com"
+          upstream = "http://192.0.2.1:3000"
+          
+          [[services]]
+          name = "media-proxy"
+          domain = "media.example.com"
+          upstream = "http://192.0.2.1:12766"
+          EOF
+          
+          echo "Validating complex configuration..."
+          ./target/release/cerberus validate -c test-complex.toml
+          
+          echo "Generating from complex configuration..."
+          ./target/release/cerberus generate -c test-complex.toml
+          
+          # Test 3: Error handling
+          echo "Testing error handling..."
+          cat > test-invalid.toml << 'EOF'
+          [project]
+          # Missing name field - should cause validation error
+          
+          [[proxies]]
+          # Missing required fields - should cause validation error
+          EOF
+          
+          echo "Testing invalid configuration (should fail)..."
+          if ./target/release/cerberus validate -c test-invalid.toml; then
+            echo "ERROR: Invalid config should have failed validation!"
+            exit 1
+          else
+            echo "✅ Correctly detected invalid configuration"
+          fi
+          
+          echo "✅ All Rust configuration pattern tests completed successfully"
 
   # Docker Compose generation validation
   docker_validation:
@@ -223,54 +287,124 @@ jobs:
       - name: Build Cerberus
         run: cargo build --release
 
-      - name: Test Docker Compose generation
+      - name: Test Rust Docker Compose generation
         run: |
-          # Create test configuration
-          mkdir -p test-output
+          echo "Testing comprehensive Docker Compose generation with Rust..."
           
-          cat > test-docker.toml << 'EOF'
+          # Test 1: Full stack with Anubis
+          cat > test-docker-full.toml << 'EOF'
           [project]
-          name = "docker-test"
+          name = "docker-test-full"
+          scaling = true
           
           [anubis]
           enabled = true
+          bind = ":8080"
+          target = "http://proxy-layer2:80"
+          difficulty = 7
+          metrics_bind = ":9090"
           
           [[proxies]]
           name = "proxy-layer1"
-          type = "caddy"
+          proxy_type = "caddy"
           external_port = 80
-          default_upstream = "http://anubis:8080"
+          upstream = "http://anubis:8080"
+          instances = 2
           
           [[proxies]]
           name = "proxy-layer2"
-          type = "caddy"
-          external_port = 80
+          proxy_type = "caddy"
+          external_port = 8080
+          upstream = "http://backend-services"
+          instances = 1
           
           [[services]]
-          name = "test-service"
-          domain = "test.example.com"
-          upstream = "http://192.0.2.1:3000"
+          name = "misskey"
+          domain = "social.example.com"
+          upstream = "http://192.0.2.10:3000"
+          
+          [[services]]
+          name = "media-proxy"
+          domain = "media.example.com"
+          upstream = "http://192.0.2.10:12766"
+          
+          [[services]]
+          name = "storage"
+          domain = "storage.example.com"
+          upstream = "http://192.0.2.11:9000"
           EOF
           
-          # Generate Docker Compose configuration
-          ./target/release/cerberus -c test-docker.toml -o test-output generate || echo "Generation completed with warnings"
+          echo "Generating full Docker Compose..."
+          ./target/release/cerberus generate -c test-docker-full.toml
           
           # Validate generated Docker Compose syntax
-          if [ -f "test-output/docker-compose.yaml" ]; then
-            echo "Validating generated Docker Compose..."
-            docker-compose -f test-output/docker-compose.yaml config --quiet || echo "Docker Compose validation completed with warnings"
-            echo "✅ Docker Compose generated successfully"
+          if [ -f "built/docker-compose.yaml" ]; then
+            echo "Validating generated Docker Compose syntax..."
+            docker-compose -f built/docker-compose.yaml config --quiet
+            echo "✅ Full Docker Compose generated and validated successfully"
+            
+            # Check for expected services
+            echo "Verifying service presence..."
+            grep -q "anubis:" built/docker-compose.yaml && echo "✅ Anubis service found"
+            grep -q "proxy-layer1" built/docker-compose.yaml && echo "✅ Proxy layer 1 services found"
+            grep -q "proxy-layer2" built/docker-compose.yaml && echo "✅ Proxy layer 2 services found"
+            
+            # Check for scaling (multiple instances)
+            proxy1_count=$(grep -c "proxy-layer1" built/docker-compose.yaml)
+            if [ "$proxy1_count" -ge 2 ]; then
+              echo "✅ Scaling detected: proxy-layer1 has multiple instances"
+            fi
           else
-            echo "❌ Docker Compose file not generated"
+            echo "❌ Docker Compose file not generated in built/"
             exit 1
           fi
+          
+          # Test 2: Minimal setup without Anubis
+          cat > test-docker-minimal.toml << 'EOF'
+          [project]
+          name = "docker-test-minimal"
+          scaling = false
+          
+          [[proxies]]
+          name = "simple-proxy"
+          proxy_type = "caddy"
+          external_port = 80
+          upstream = "http://app:3000"
+          
+          [[services]]
+          name = "simple-app"
+          domain = "app.example.com"
+          upstream = "http://192.0.2.20:3000"
+          EOF
+          
+          echo "Generating minimal Docker Compose..."
+          ./target/release/cerberus generate -c test-docker-minimal.toml
+          
+          if [ -f "built/docker-compose.yaml" ]; then
+            echo "Validating minimal Docker Compose..."
+            docker-compose -f built/docker-compose.yaml config --quiet
+            echo "✅ Minimal Docker Compose generated and validated successfully"
+            
+            # Should NOT contain Anubis
+            if grep -q "anubis:" built/docker-compose.yaml; then
+              echo "❌ Anubis found in minimal config (should not be present)"
+              exit 1
+            else
+              echo "✅ Anubis correctly excluded from minimal config"
+            fi
+          else
+            echo "❌ Minimal Docker Compose file not generated"
+            exit 1
+          fi
+          
+          echo "✅ All Docker Compose generation tests completed successfully"
 
       - name: Upload generated artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: generated-docker-compose
-          path: test-output/
+          path: built/
           retention-days: 7
 
   # Security scanning
