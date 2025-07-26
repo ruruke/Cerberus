@@ -215,10 +215,10 @@ jobs:
         if: matrix.test-suite == 'docker-compose'
         timeout-minutes: ${{ matrix.timeout }}
         run: |
-          if [[ -f "tests/test-docker-compose-generator.sh" ]]; then
-            echo "Running Docker Compose generator test..."
-            chmod +x tests/test-docker-compose-generator.sh
-            timeout 90 bash tests/test-docker-compose-generator.sh || {
+          if [[ -f "tests/test-docker-compose-simple.sh" ]]; then
+            echo "Running Docker Compose generator test (simple)..."
+            chmod +x tests/test-docker-compose-simple.sh
+            timeout 90 bash tests/test-docker-compose-simple.sh || {
               echo "❌ Docker Compose generator test failed"
               exit 1
             }
@@ -494,68 +494,6 @@ jobs:
           
           echo "Basic security scan completed"
 
-  # Release preparation
-  release:
-    name: Prepare Release
-    runs-on: ubuntu-latest
-    needs: [test, stability, docker-build]
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Simple changelog generation
-          echo "## Changes since last release" > CHANGELOG.md
-          echo "" >> CHANGELOG.md
-          git log --oneline --since="1 week ago" >> CHANGELOG.md
-
-      - name: Create release package
-        run: |
-          # Create clean release package
-          mkdir -p release/cerberus
-          
-          # Copy essential files
-          cp -r lib/ release/cerberus/
-          cp -r docs/ release/cerberus/
-          cp -r tests/ release/cerberus/
-          cp cerberus.sh release/cerberus/
-          cp config-example.toml release/cerberus/
-          cp config-tls-example.toml release/cerberus/
-          cp README.md release/cerberus/
-          cp LICENSE release/cerberus/
-          
-          # Clean up test artifacts
-          find release/cerberus/tests -name "tmp" -type d -exec rm -rf {} + 2>/dev/null || true
-          
-          # Create archive
-          cd release
-          tar -czf cerberus-latest.tar.gz cerberus/
-          cd ..
-
-      - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cerberus-release
-          path: |
-            release/cerberus-latest.tar.gz
-            CHANGELOG.md
-          retention-days: 30
-
-      # - name: Create GitHub Release
-      #   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      #   uses: softprops/action-gh-release@v1
-      #   with:
-      #     tag_name: v${{ github.run_number }}
-      #     name: Release v${{ github.run_number }}
-      #     body_path: CHANGELOG.md
-      #     files: release/cerberus-latest.tar.gz
-      #     draft: false
-      #     prerelease: false
 
   # Notification
   notify:
