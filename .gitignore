@@ -49,3 +49,7 @@ node_modules/
 # Local development overrides
 docker-compose.override.yml
 docker-compose.local.yml
+
+# Added by cargo
+
+/target
