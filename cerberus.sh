@@ -19,6 +19,11 @@ readonly COMPOSE_FILE="${BUILT_DIR}/docker-compose.yaml"
 source "${LIB_DIR}/core/utils.sh"
 source "${LIB_DIR}/core/config-simple.sh"
 
+# Source generators
+source "${LIB_DIR}/generators/docker-compose.sh"
+source "${LIB_DIR}/generators/dockerfiles.sh"
+source "${LIB_DIR}/generators/proxy-configs.sh"
+
 # Global configuration
 if [[ -z "${CONFIG_FILE:-}" ]]; then
     CONFIG_FILE="${CERBERUS_CONFIG:-${SCRIPT_DIR}/config.toml}"

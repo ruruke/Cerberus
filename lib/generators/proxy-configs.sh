@@ -366,6 +366,17 @@ EOF
     echo "        header_up X-Forwarded-For {remote}" >> "$caddyfile"
     echo "        header_up X-Forwarded-Proto {scheme}" >> "$caddyfile"
     
+    # Add custom request headers
+    if [[ -n "$(config_get_string "${prefix}.headers_request_host")" ]]; then
+        echo "        header_up Host \"$(config_get_string "${prefix}.headers_request_host")\"" >> "$caddyfile"
+    fi
+    if [[ -n "$(config_get_string "${prefix}.headers_request_x_forwarded_proto")" ]]; then
+        echo "        header_up X-Forwarded-Proto \"$(config_get_string "${prefix}.headers_request_x_forwarded_proto")\"" >> "$caddyfile"
+    fi
+    if [[ "$(config_get_string "${prefix}.headers_request_proxy")" == "" ]]; then
+        echo "        header_up -Proxy" >> "$caddyfile"
+    fi
+    
     if [[ "$websocket" == "true" ]]; then
         echo "        # WebSocket support" >> "$caddyfile"
         echo "        header_up Upgrade {http.request.header.Upgrade}" >> "$caddyfile"
@@ -373,6 +384,26 @@ EOF
     fi
     
     echo "    }" >> "$caddyfile"
+    
+    # Add custom response headers
+    local has_response_headers=false
+    if [[ -n "$(config_get_string "${prefix}.headers_response_cache_control")" ]]; then
+        if [[ "$has_response_headers" == "false" ]]; then
+            echo "    header {" >> "$caddyfile"
+            has_response_headers=true
+        fi
+        echo "        Cache-Control \"$(config_get_string "${prefix}.headers_response_cache_control")\"" >> "$caddyfile"
+    fi
+    if [[ -n "$(config_get_string "${prefix}.headers_response_pragma")" ]]; then
+        if [[ "$has_response_headers" == "false" ]]; then
+            echo "    header {" >> "$caddyfile"
+            has_response_headers=true
+        fi
+        echo "        Pragma \"$(config_get_string "${prefix}.headers_response_pragma")\"" >> "$caddyfile"
+    fi
+    if [[ "$has_response_headers" == "true" ]]; then
+        echo "    }" >> "$caddyfile"
+    fi
     echo "}" >> "$caddyfile"
 }
 
