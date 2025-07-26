@@ -68,7 +68,7 @@ generate_compose_services() {
     generate_proxy_services
     
     # Generate Anubis DDoS protection if enabled
-    if config_get_bool "anubis.enabled" false; then
+    if [[ "$(config_get_bool "anubis.enabled" "false")" == "true" ]]; then
         generate_anubis_service
     fi
     
@@ -109,6 +109,7 @@ generate_single_proxy_service() {
         return 1
     fi
     
+    # Generate the service definition
     cat << EOF
 
   # Proxy Layer: $name ($type)
@@ -124,8 +125,12 @@ generate_single_proxy_service() {
     networks:
       - front-net
       - back-net
-    depends_on:
-$(generate_proxy_dependencies "$index")
+EOF
+
+    # Add dependencies section if any exist
+    generate_proxy_dependencies_section "$index"
+    
+    cat << EOF
     environment:
 $(generate_proxy_environment "$index")
     labels:
@@ -248,8 +253,8 @@ generate_backend_service() {
     name=$(config_get_string "${prefix}.name")
     domain=$(config_get_string "${prefix}.domain")
     upstream=$(config_get_string "${prefix}.upstream")
-    websocket=$(config_get_bool "${prefix}.websocket" false)
-    compress=$(config_get_bool "${prefix}.compress" true)
+    websocket=$(config_get_bool "${prefix}.websocket" "false")
+    compress=$(config_get_bool "${prefix}.compress" "true")
     max_body_size=$(config_get_string "${prefix}.max_body_size" "1m")
     
     if [[ -z "$name" || -z "$domain" || -z "$upstream" ]]; then
@@ -413,32 +418,37 @@ get_proxy_healthcheck_cmd() {
     esac
 }
 
-# Generate proxy dependencies
-generate_proxy_dependencies() {
+# Generate proxy dependencies section
+generate_proxy_dependencies_section() {
     local index="$1"
     local dependencies=()
     
-    # For the first proxy, it might depend on Anubis
-    if [[ $index -eq 0 ]] && [[ "$(config_get_bool "anubis.enabled")" == "true" ]]; then
+    # For proxy layer 0, it depends on Anubis if enabled
+    if [[ $index -eq 0 ]] && [[ "$(config_get_bool "anubis.enabled" "false")" == "true" ]]; then
         dependencies+=("anubis")
     fi
     
-    # Additional dependencies based on configuration
-    local upstream
-    upstream=$(config_get_string "proxies.${index}.upstream" "")
-    if [[ -n "$upstream" && ! "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+: ]]; then
-        # It's a service name, not an IP
-        local service_name
-        service_name=$(echo "$upstream" | sed 's|.*://||' | cut -d: -f1)
-        if [[ "$service_name" != "anubis" ]] || [[ ${#dependencies[@]} -eq 0 ]]; then
+    # For proxy layer 1 (proxy-layer2), check if it has specific upstream dependencies
+    if [[ $index -eq 1 ]]; then
+        # Layer 2 typically doesn't depend on other containers since it routes to external IPs
+        # Only add dependencies if explicitly configured
+        local upstream
+        upstream=$(config_get_string "proxies.${index}.upstream" "")
+        if [[ -n "$upstream" && ! "$upstream" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+: ]]; then
+            # It's a service name, not an IP
+            local service_name
+            service_name=$(echo "$upstream" | sed 's|.*://||' | cut -d: -f1)
             dependencies+=("$service_name")
         fi
     fi
     
-    # Output dependencies
-    for dep in "${dependencies[@]}"; do
-        echo "      - $dep"
-    done
+    # Only output depends_on section if there are dependencies
+    if [[ ${#dependencies[@]} -gt 0 ]]; then
+        echo "    depends_on:"
+        for dep in "${dependencies[@]}"; do
+            echo "      - $dep"
+        done
+    fi
 }
 
 # Generate proxy environment variables

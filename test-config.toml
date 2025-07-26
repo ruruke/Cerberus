@@ -1,0 +1,6 @@
+[project]
+name = "test"
+
+[[proxies]]
+name = "test-proxy"
+type = "caddy"

@@ -1,108 +1,137 @@
 #!/bin/bash
 
 # Simple TOML Configuration Parser
-# Simplified version for testing
+# Supports basic key-value pairs, sections, and array tables
+# Designed for Cerberus configuration management
 
 set -euo pipefail
 
-# Source utils library
+# Environment setup
 if [[ -z "${SCRIPT_DIR:-}" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 fi
+
+# Source utilities
 source "${SCRIPT_DIR}/lib/core/utils.sh"
+
+# =============================================================================
+# GLOBAL VARIABLES
+# =============================================================================
 
 # Configuration state
 declare -g CONFIG_LOADED=false
 declare -g CONFIG_FILE_PATH=""
-declare -gA CONFIG_CACHE=()
+declare -gA CONFIG_CACHE
 
-# Load configuration from TOML file (simplified)
+# =============================================================================
+# CONFIGURATION LOADING
+# =============================================================================
+
+# Load configuration from TOML file
+# Usage: config_load [config_file]
 config_load() {
-    local config_file="${1:-$CONFIG_FILE}"
+    local config_file="${1:-${CONFIG_FILE:-}}"
     
+    # Validation
     if [[ -z "$config_file" ]]; then
-        die "Configuration file not specified"
+        log_error "No configuration file specified"
+        return 1
     fi
     
-    require_file "$config_file" "configuration file"
+    if [[ ! -f "$config_file" ]]; then
+        log_error "Configuration file not found: $config_file"
+        return 1
+    fi
     
+    if [[ ! -r "$config_file" ]]; then
+        log_error "Configuration file not readable: $config_file"
+        return 1
+    fi
+    
+    # Initialize state
     CONFIG_FILE_PATH="$config_file"
     CONFIG_CACHE=()
     
     log_info "Loading configuration from: $config_file"
     
+    # Parse configuration
     local current_section=""
     local line_number=0
-    declare -A array_table_counters
+    local -A array_counters  # Track array table instances
     
-    while IFS= read -r line || [[ -n "$line" ]]; do
+    log_debug "About to start reading file"
+    
+    # Process file line by line
+    while IFS= read -r raw_line; do
         ((line_number++))
+        log_debug "Read line $line_number: $raw_line"
         
-        # Remove comments and trim
-        line="${line%%#*}"
-        line=$(trim "$line")
+        # Remove comments and trim whitespace
+        local line="${raw_line%%#*}"
+        # Simple trim without function call
+        line="${line#"${line%%[![:space:]]*}"}"
+        line="${line%"${line##*[![:space:]]}"}"
         
         # Skip empty lines
         [[ -z "$line" ]] && continue
         
-        # Handle sections [section] and [[array_section]]
+        # Process line based on type
         if [[ "$line" =~ ^\[\[([^\]]+)\]\]$ ]]; then
-            # Array table
+            # Array table: [[section]]
             local section="${BASH_REMATCH[1]}"
-            if [[ -z "$section" ]]; then
-                log_error "Invalid array table syntax at line $line_number: $line"
-                return 1
-            fi
-            local count="${array_table_counters[$section]:-0}"
+            local count="${array_counters[$section]:-0}"
             current_section="${section}.${count}"
-            array_table_counters["$section"]=$((count + 1))
-            continue
+            array_counters["$section"]=$((count + 1))
+            log_debug "Array table: [$current_section]"
+            
         elif [[ "$line" =~ ^\[([^\]]+)\]$ ]]; then
-            # Regular section
-            local section="${BASH_REMATCH[1]}"
-            if [[ -z "$section" ]]; then
-                log_error "Invalid section syntax at line $line_number: $line"
-                return 1
-            fi
-            current_section="$section"
-            continue
-        fi
-        
-        # Handle key-value pairs
-        if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+            # Regular section: [section]
+            current_section="${BASH_REMATCH[1]}"
+            log_debug "Section: [$current_section]"
+            
+        elif [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+            # Key-value pair: key = value
             local key="${BASH_REMATCH[1]}"
             local value="${BASH_REMATCH[2]}"
             
-            key=$(trim "$key")
-            value=$(trim "$value")
+            # Clean key and value - simple trim
+            key="${key#"${key%%[![:space:]]*}"}"
+            key="${key%"${key##*[![:space:]]}"}"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
             
-            # Validate key
-            if [[ -z "$key" ]]; then
-                log_error "Empty key at line $line_number: $line"
-                return 1
-            fi
-            
-            # Remove quotes from strings
+            # Remove quotes from string values
             if [[ "$value" =~ ^\"(.*)\"$ ]]; then
                 value="${BASH_REMATCH[1]}"
             fi
             
-            # Build full key
+            # Build full key path
             local full_key="$key"
             if [[ -n "$current_section" ]]; then
                 full_key="${current_section}.${key}"
             fi
             
+            # Store in cache
             CONFIG_CACHE["$full_key"]="$value"
+            log_debug "Config: $full_key = $value"
+            
         elif [[ -n "$line" ]]; then
-            # Non-empty line that doesn't match expected patterns
-            log_warn "Unrecognized syntax at line $line_number: $line"
+            # Unrecognized syntax
+            log_warn "Unknown syntax at line $line_number: $line"
         fi
+        
     done < "$config_file"
     
+    # Mark as loaded
     CONFIG_LOADED=true
-    log_info "Configuration loaded successfully (${#CONFIG_CACHE[@]} keys loaded)"
+    log_info "Configuration loaded successfully (${#CONFIG_CACHE[@]} keys)"
+    
+    return 0
 }
+
+# =============================================================================
+# CONFIGURATION ACCESS
+# =============================================================================
 
 # Check if configuration is loaded
 config_is_loaded() {
@@ -112,125 +141,129 @@ config_is_loaded() {
 # Require configuration to be loaded
 require_config_loaded() {
     if ! config_is_loaded; then
-        die "Configuration not loaded. Call config_load first."
+        log_error "Configuration not loaded. Call config_load first."
+        return 1
     fi
 }
 
-# Check if key exists
-config_key_exists() {
+# Check if configuration key exists
+# Usage: config_has_key "key.path"
+config_has_key() {
     local key="$1"
-    config_is_loaded || return 1
+    require_config_loaded
     [[ -n "${CONFIG_CACHE[$key]:-}" ]]
 }
 
-# Get configuration value
-config_get() {
-    local key="$1"
-    local default="${2:-}"
-    
-    config_is_loaded || return 1
-    echo "${CONFIG_CACHE[$key]:-$default}"
-}
-
-# Get string value
+# Get string value from configuration
+# Usage: config_get_string "key.path" [default_value]
 config_get_string() {
     local key="$1"
     local default="${2:-}"
-    config_get "$key" "$default"
+    
+    require_config_loaded
+    
+    local value="${CONFIG_CACHE[$key]:-$default}"
+    echo "$value"
 }
 
-# Get integer value
+# Get integer value from configuration
+# Usage: config_get_int "key.path" [default_value]
 config_get_int() {
     local key="$1"
     local default="${2:-0}"
     
     local value
-    value=$(config_get "$key" "$default")
+    value=$(config_get_string "$key" "$default")
     
-    if [[ "$value" =~ ^-?[0-9]+$ ]]; then
-        echo "$value"
-    else
+    # Validate integer
+    if [[ ! "$value" =~ ^-?[0-9]+$ ]]; then
+        log_warn "Invalid integer value for $key: $value (using default: $default)"
         echo "$default"
+        return 1
     fi
+    
+    echo "$value"
 }
 
-# Get boolean value
+# Get boolean value from configuration
+# Usage: config_get_bool "key.path" [default_value]
 config_get_bool() {
     local key="$1"
     local default="${2:-false}"
     
     local value
-    value=$(config_get "$key" "$default")
+    value=$(config_get_string "$key" "$default")
     
-    case "$(to_lower "$value")" in
-        true|yes|1|on)
+    # Convert to lowercase for comparison
+    value=$(echo "$value" | tr '[:upper:]' '[:lower:]')
+    
+    case "$value" in
+        true|yes|1|on|enabled)
             echo "true"
             ;;
-        false|no|0|off)
+        false|no|0|off|disabled)
             echo "false"
             ;;
         *)
+            log_warn "Invalid boolean value for $key: $value (using default: $default)"
             echo "$default"
+            return 1
             ;;
     esac
 }
 
 # Get array table count
+# Usage: config_get_array_table_count "table_name"
 config_get_array_table_count() {
-    local key="$1"
-    
-    config_is_loaded || return 1
+    local table="$1"
+    require_config_loaded
     
     local count=0
-    # Try different ways to detect array table entries
-    while config_key_exists "${key}.${count}.name" || 
-          config_key_exists "${key}.${count}.type" || 
-          config_key_exists "${key}.${count}.domain" || 
-          config_key_exists "${key}.${count}.upstream" ||
-          config_key_exists "${key}.${count}"; do
-        ((count++))
+    local pattern="^${table}\\.[0-9]+\\."
+    
+    # Count matching keys
+    for key in "${!CONFIG_CACHE[@]}"; do
+        if [[ "$key" =~ $pattern ]]; then
+            local index
+            index=$(echo "$key" | sed "s/^${table}\\.//" | cut -d. -f1)
+            if [[ "$index" =~ ^[0-9]+$ ]] && [[ $index -ge $count ]]; then
+                count=$((index + 1))
+            fi
+        fi
     done
     
     echo "$count"
 }
 
-# Simple validation - just check required keys
-config_validate() {
-    config_is_loaded || return 1
-    
-    local required_keys=(
-        "project.name"
-    )
-    
-    local errors=0
-    for key in "${required_keys[@]}"; do
-        if ! config_key_exists "$key"; then
-            log_error "Required key missing: $key"
-            ((errors++))
-        fi
-    done
-    
-    return $((errors == 0))
-}
+# =============================================================================
+# DEBUGGING AND UTILITIES
+# =============================================================================
 
-# List all keys (for debugging)
+# List all configuration keys (for debugging)
 config_list_keys() {
-    if ! config_is_loaded; then
-        return 1
-    fi
+    require_config_loaded
     
+    echo "Configuration keys:"
     for key in "${!CONFIG_CACHE[@]}"; do
-        echo "$key"
+        echo "  $key = ${CONFIG_CACHE[$key]}"
     done | sort
 }
 
-# Show configuration
-config_show() {
-    echo "Configuration loaded from: $CONFIG_FILE_PATH"
-    echo "Keys found:"
-    for key in "${!CONFIG_CACHE[@]}"; do
-        printf "  %-30s = %s\\n" "$key" "${CONFIG_CACHE[$key]}"
-    done | sort
+# Get configuration statistics
+config_stats() {
+    require_config_loaded
+    
+    echo "Configuration Statistics:"
+    echo "  File: $CONFIG_FILE_PATH"
+    echo "  Keys: ${#CONFIG_CACHE[@]}"
+    echo "  Loaded: $CONFIG_LOADED"
 }
 
-log_debug "Simple config library loaded"
+# =============================================================================
+# INITIALIZATION
+# =============================================================================
+
+# Initialize if sourced
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+    log_debug "Config library loaded"
+fi
