@@ -92,7 +92,7 @@ algorithm = "roundrobin"
 [[services]]
 name = "misskey"
 domain = "mi.ruruke.moe"
-upstream = "http://100.103.133.21:3000"
+upstream = "http://192.0.2.1:3000"
 ```
 
 ### Advanced Features
