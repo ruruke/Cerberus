@@ -144,19 +144,19 @@ pub struct CertificateConfig {
 pub struct DockerBuildConfig {
     /// Build context path
     pub context: String,
-    
+
     /// Dockerfile path
     #[serde(default)]
     pub dockerfile: Option<String>,
-    
+
     /// Build args
     #[serde(default)]
     pub args: std::collections::HashMap<String, String>,
-    
+
     /// Build target stage
     #[serde(default)]
     pub target: Option<String>,
-    
+
     /// Additional contexts
     #[serde(default)]
     pub additional_contexts: std::collections::HashMap<String, String>,
@@ -187,23 +187,23 @@ pub struct DependencyCondition {
 pub struct HealthcheckConfig {
     /// Test command
     pub test: Vec<String>,
-    
+
     /// Check interval
     #[serde(default = "default_healthcheck_interval")]
     pub interval: String,
-    
+
     /// Timeout
     #[serde(default = "default_healthcheck_timeout")]
     pub timeout: String,
-    
+
     /// Retries
     #[serde(default = "default_healthcheck_retries")]
     pub retries: u32,
-    
+
     /// Start period
     #[serde(default)]
     pub start_period: Option<String>,
-    
+
     /// Start interval
     #[serde(default)]
     pub start_interval: Option<String>,
@@ -226,7 +226,7 @@ fn default_healthcheck_retries() -> u32 {
 pub struct LoggingDriverConfig {
     /// Driver type
     pub driver: String,
-    
+
     /// Driver options
     #[serde(default)]
     pub options: std::collections::HashMap<String, String>,
@@ -238,7 +238,7 @@ pub struct ResourcesConfig {
     /// Resource limits
     #[serde(default)]
     pub limits: Option<ResourceLimits>,
-    
+
     /// Resource reservations
     #[serde(default)]
     pub reservations: Option<ResourceLimits>,
@@ -250,11 +250,11 @@ pub struct ResourceLimits {
     /// CPU limit
     #[serde(default)]
     pub cpus: Option<String>,
-    
+
     /// Memory limit
     #[serde(default)]
     pub memory: Option<String>,
-    
+
     /// PID limit
     #[serde(default)]
     pub pids: Option<u32>,
@@ -713,7 +713,7 @@ impl ProxyType {
     pub fn as_str(&self) -> &'static str {
         match self {
             ProxyType::Caddy => "caddy",
-            ProxyType::Nginx => "nginx", 
+            ProxyType::Nginx => "nginx",
             ProxyType::HaProxy => "haproxy",
             ProxyType::Traefik => "traefik",
         }

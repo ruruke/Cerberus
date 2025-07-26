@@ -67,9 +67,9 @@ impl Cerberus {
     pub async fn generate_all(&self) -> Result<()> {
         let generator = generators::CerberusGenerator::new(
             &self.config,
-            self.output_dir.to_string_lossy().to_string()
+            self.output_dir.to_string_lossy().to_string(),
         );
-        
+
         generator.generate_all().await?;
         Ok(())
     }
@@ -83,9 +83,9 @@ impl Cerberus {
     pub async fn validate(&self) -> Result<()> {
         let generator = generators::CerberusGenerator::new(
             &self.config,
-            self.output_dir.to_string_lossy().to_string()
+            self.output_dir.to_string_lossy().to_string(),
         );
-        
+
         generator.validate_generated().await?;
         Ok(())
     }
@@ -99,9 +99,9 @@ impl Cerberus {
     pub async fn clean(&self) -> Result<()> {
         let generator = generators::CerberusGenerator::new(
             &self.config,
-            self.output_dir.to_string_lossy().to_string()
+            self.output_dir.to_string_lossy().to_string(),
         );
-        
+
         generator.clean().await?;
         Ok(())
     }

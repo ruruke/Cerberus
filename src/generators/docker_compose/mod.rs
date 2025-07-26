@@ -38,9 +38,10 @@ impl<'a> DockerComposeGenerator<'a> {
         for (index, proxy) in self.config.proxies.iter().enumerate() {
             // Skip proxy-1 if anubis is disabled AND proxy is nginx (no DDoS protection needed)
             // Other proxy types (Caddy, HAProxy, Traefik) always generate as simple reverse proxies
-            if proxy.layer.unwrap_or(1) == 1 
-                && !self.config.anubis.enabled 
-                && proxy.proxy_type == ProxyType::Nginx {
+            if proxy.layer.unwrap_or(1) == 1
+                && !self.config.anubis.enabled
+                && proxy.proxy_type == ProxyType::Nginx
+            {
                 continue;
             }
             self.generate_proxy_service(&mut output, proxy, index)?;
@@ -99,7 +100,7 @@ impl<'a> DockerComposeGenerator<'a> {
         .unwrap();
         writeln!(output, "    container_name: {}", proxy.name).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
-        
+
         // ポート設定（external_portがある場合のみ）
         if let Some(external_port) = proxy.external_port {
             writeln!(output, "    ports:").unwrap();
@@ -118,12 +119,7 @@ impl<'a> DockerComposeGenerator<'a> {
         } else if proxy.layer.unwrap_or(1) == 2 && !self.config.anubis.enabled {
             // If anubis is disabled, proxy-2 should expose external port
             writeln!(output, "    ports:").unwrap();
-            writeln!(
-                output,
-                "      - \"7000:{}\"",
-                proxy.internal_port
-            )
-            .unwrap();
+            writeln!(output, "      - \"7000:{}\"", proxy.internal_port).unwrap();
         }
         writeln!(output, "    volumes:").unwrap();
         match proxy.proxy_type {
@@ -134,7 +130,7 @@ impl<'a> DockerComposeGenerator<'a> {
                     proxy.name
                 )
                 .unwrap();
-            },
+            }
             _ => {
                 writeln!(
                     output,
@@ -221,7 +217,7 @@ impl<'a> DockerComposeGenerator<'a> {
         .unwrap();
         writeln!(output, "    container_name: {}-{}", proxy.name, instance).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
-        
+
         // ポート設定（external_portがある場合のみ）
         if let Some(external_port) = proxy.external_port {
             writeln!(output, "    ports:").unwrap();
@@ -242,7 +238,7 @@ impl<'a> DockerComposeGenerator<'a> {
                     proxy.name
                 )
                 .unwrap();
-            },
+            }
             _ => {
                 writeln!(
                     output,
@@ -367,7 +363,12 @@ impl<'a> DockerComposeGenerator<'a> {
             self.config.anubis.metrics_bind
         )
         .unwrap();
-        writeln!(output, "      - SERVE_ROBOTS_TXT={}", self.config.anubis.serve_robots_txt).unwrap();
+        writeln!(
+            output,
+            "      - SERVE_ROBOTS_TXT={}",
+            self.config.anubis.serve_robots_txt
+        )
+        .unwrap();
         writeln!(output, "    labels:").unwrap();
         writeln!(output, "      - \"cerberus.service=ddos-protection\"").unwrap();
         writeln!(output, "      - \"cerberus.layer=anubis\"").unwrap();
@@ -427,16 +428,16 @@ impl<'a> DockerComposeGenerator<'a> {
     fn generate_networks(&self, output: &mut String) -> Result<()> {
         writeln!(output).unwrap();
         writeln!(output, "networks:").unwrap();
-        
+
         // Generate networks from config
         if !self.config.networks.is_empty() {
             for (name, network) in &self.config.networks {
                 writeln!(output, "  {}:", name).unwrap();
                 writeln!(output, "    driver: {}", network.driver).unwrap();
-                
+
                 if !network.external {
                     writeln!(output, "    name: {}-{}", self.config.project.name, name).unwrap();
-                    
+
                     if let Some(ipam) = &network.ipam {
                         writeln!(output, "    ipam:").unwrap();
                         if let Some(driver) = &ipam.driver {
@@ -487,18 +488,18 @@ impl<'a> DockerComposeGenerator<'a> {
     fn generate_volumes(&self, output: &mut String) -> Result<()> {
         writeln!(output).unwrap();
         writeln!(output, "volumes:").unwrap();
-        
+
         // Generate volumes from config
         if !self.config.volumes.is_empty() {
             for (name, volume) in &self.config.volumes {
                 writeln!(output, "  {}:", name).unwrap();
-                
+
                 if !volume.external {
                     if let Some(driver) = &volume.driver {
                         writeln!(output, "    driver: {}", driver).unwrap();
                     }
                     writeln!(output, "    name: {}-{}", self.config.project.name, name).unwrap();
-                    
+
                     if !volume.driver_opts.is_empty() {
                         writeln!(output, "    driver_opts:").unwrap();
                         for (key, value) in &volume.driver_opts {
@@ -511,7 +512,7 @@ impl<'a> DockerComposeGenerator<'a> {
                         writeln!(output, "    name: {}", external_name).unwrap();
                     }
                 }
-                
+
                 if !volume.labels.is_empty() {
                     writeln!(output, "    labels:").unwrap();
                     for (key, value) in &volume.labels {
@@ -560,7 +561,6 @@ impl<'a> DockerComposeGenerator<'a> {
         }
     }
 
-
     /// Check if upstream is an external IP/hostname
     fn is_external_upstream(&self, upstream: &str) -> bool {
         // Simple check: if it contains IP pattern or external domains
@@ -578,7 +578,10 @@ impl<'a> DockerComposeGenerator<'a> {
 
     /// Check if configuration has any nginx proxies
     fn has_nginx_proxy(&self) -> bool {
-        self.config.proxies.iter().any(|proxy| proxy.proxy_type == ProxyType::Nginx)
+        self.config
+            .proxies
+            .iter()
+            .any(|proxy| proxy.proxy_type == ProxyType::Nginx)
     }
 
     /// Validate a Docker Compose file

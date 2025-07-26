@@ -86,10 +86,10 @@ fn create_multi_proxy_config() -> Config {
     let mut config = create_minimal_config();
     let mut proxy1 = create_test_proxy("proxy-layer1", ProxyType::Caddy, 80);
     proxy1.default_upstream = Some("http://anubis:8080".to_string());
-    
+
     let mut proxy2 = create_test_proxy("proxy-layer2", ProxyType::Caddy, 80);
     proxy2.layer = Some(2);
-    
+
     config.proxies = vec![proxy1, proxy2];
     config
 }

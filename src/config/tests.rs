@@ -513,42 +513,50 @@ secrets = [
 
     let temp_file = create_temp_config(content);
     let config = Config::load(temp_file.path()).expect("Failed to load config");
-    
+
     // Check secrets configuration
     assert_eq!(config.secrets.len(), 4);
-    
+
     // Test file-based secret
     if let Some(crate::config::SecretConfig::File { file }) = config.secrets.get("db_password") {
         assert_eq!(file, "./secrets/db_password.txt");
     } else {
         panic!("Expected file-based secret");
     }
-    
+
     // Test environment secret
-    if let Some(crate::config::SecretConfig::Environment { environment }) = config.secrets.get("oauth_token") {
+    if let Some(crate::config::SecretConfig::Environment { environment }) =
+        config.secrets.get("oauth_token")
+    {
         assert_eq!(environment, "OAUTH_TOKEN");
     } else {
         panic!("Expected environment secret");
     }
-    
+
     // Test content secret
     if let Some(crate::config::SecretConfig::Content { content }) = config.secrets.get("api_key") {
         assert_eq!(content, "super-secret-key");
     } else {
         panic!("Expected content secret");
     }
-    
+
     // Check proxy secrets references
     let proxy = &config.proxies[0];
     assert_eq!(proxy.secrets.len(), 2);
-    
+
     if let crate::config::ServiceSecretRef::Simple(name) = &proxy.secrets[0] {
         assert_eq!(name, "db_password");
     } else {
         panic!("Expected simple secret reference");
     }
-    
-    if let crate::config::ServiceSecretRef::Detailed { source, target, mode, .. } = &proxy.secrets[1] {
+
+    if let crate::config::ServiceSecretRef::Detailed {
+        source,
+        target,
+        mode,
+        ..
+    } = &proxy.secrets[1]
+    {
         assert_eq!(source, "api_key");
         assert_eq!(target.as_ref().unwrap(), "/run/secrets/api_key");
         assert_eq!(*mode, Some(400));
@@ -584,25 +592,27 @@ configs = [
 
     let temp_file = create_temp_config(content);
     let config = Config::load(temp_file.path()).expect("Failed to load config");
-    
+
     // Check configs configuration
     assert_eq!(config.configs.len(), 2);
-    
+
     // Test file-based config
     if let Some(crate::config::ConfigFileConfig::File { file }) = config.configs.get("app_config") {
         assert_eq!(file, "./configs/app.conf");
     } else {
         panic!("Expected file-based config");
     }
-    
+
     // Test content config
-    if let Some(crate::config::ConfigFileConfig::Content { content }) = config.configs.get("dynamic_config") {
+    if let Some(crate::config::ConfigFileConfig::Content { content }) =
+        config.configs.get("dynamic_config")
+    {
         assert!(content.contains("debug=true"));
         assert!(content.contains("log_level=info"));
     } else {
         panic!("Expected content config");
     }
-    
+
     // Check proxy configs references
     let proxy = &config.proxies[0];
     assert_eq!(proxy.configs.len(), 2);
@@ -641,31 +651,31 @@ networks = ["frontend", "backend"]
 
     let temp_file = create_temp_config(content);
     let config = Config::load(temp_file.path()).expect("Failed to load config");
-    
+
     // Check networks configuration
     assert_eq!(config.networks.len(), 3);
-    
+
     // Test frontend network
     let frontend = config.networks.get("frontend").unwrap();
     assert_eq!(frontend.driver, "bridge");
     assert!(frontend.enable_ipv6);
-    
+
     // Test backend network with IPAM
     let backend = config.networks.get("backend").unwrap();
     assert_eq!(backend.driver, "overlay");
     assert!(backend.ipam.is_some());
-    
+
     if let Some(ipam) = &backend.ipam {
         assert_eq!(ipam.config.len(), 1);
         assert_eq!(ipam.config[0].subnet.as_ref().unwrap(), "172.20.0.0/16");
         assert_eq!(ipam.config[0].gateway.as_ref().unwrap(), "172.20.0.1");
     }
-    
+
     // Test external network
     let external = config.networks.get("external_net").unwrap();
     assert!(external.external);
     assert_eq!(external.name.as_ref().unwrap(), "existing-network");
-    
+
     // Check proxy networks
     let proxy = &config.proxies[0];
     assert_eq!(proxy.networks, vec!["frontend", "backend"]);
@@ -700,24 +710,24 @@ volumes = [
 
     let temp_file = create_temp_config(content);
     let config = Config::load(temp_file.path()).expect("Failed to load config");
-    
+
     // Check volumes configuration
     assert_eq!(config.volumes.len(), 3);
-    
+
     // Test local volume
     let db_data = config.volumes.get("db_data").unwrap();
     assert_eq!(db_data.driver.as_ref().unwrap(), "local");
-    
+
     // Test external volume
     let shared = config.volumes.get("shared_storage").unwrap();
     assert!(shared.external);
     assert_eq!(shared.name.as_ref().unwrap(), "shared-volume");
-    
+
     // Test volume with driver options
     let cache = config.volumes.get("cache_data").unwrap();
     assert_eq!(cache.driver_opts.get("type").unwrap(), "tmpfs");
     assert_eq!(cache.driver_opts.get("device").unwrap(), "tmpfs");
-    
+
     // Check proxy volumes
     let proxy = &config.proxies[0];
     assert_eq!(proxy.volumes.len(), 2);
@@ -788,7 +798,7 @@ failure_action = "rollback"
 
     let temp_file = create_temp_config(content);
     let config = Config::load(temp_file.path()).expect("Failed to load config");
-    
+
     // Basic checks
     assert_eq!(config.project.name, "comprehensive-test");
     assert_eq!(config.secrets.len(), 1);
@@ -796,47 +806,50 @@ failure_action = "rollback"
     assert_eq!(config.networks.len(), 2);
     assert_eq!(config.volumes.len(), 1);
     assert_eq!(config.proxies.len(), 1);
-    
+
     let proxy = &config.proxies[0];
-    
+
     // Check proxy configuration
     assert_eq!(proxy.name, "web-proxy");
     assert_eq!(proxy.external_port, Some(80));
     assert_eq!(proxy.build_context.as_ref().unwrap(), "./nginx");
     assert_eq!(proxy.restart.as_ref().unwrap(), "unless-stopped");
-    
+
     // Check networks and volumes
     assert_eq!(proxy.networks, vec!["web", "db"]);
     assert_eq!(proxy.volumes.len(), 1);
-    
+
     // Check secrets and configs
     assert_eq!(proxy.secrets.len(), 1);
     assert_eq!(proxy.configs.len(), 1);
-    
+
     // Check environment
     assert_eq!(proxy.environment.get("NGINX_HOST").unwrap(), "localhost");
     assert_eq!(proxy.environment.get("NGINX_PORT").unwrap(), "80");
-    
+
     // Check healthcheck
     assert!(proxy.healthcheck.is_some());
     if let Some(hc) = &proxy.healthcheck {
-        assert_eq!(hc.test, vec!["CMD", "curl", "-f", "http://localhost/health"]);
+        assert_eq!(
+            hc.test,
+            vec!["CMD", "curl", "-f", "http://localhost/health"]
+        );
         assert_eq!(hc.interval, "30s");
         assert_eq!(hc.retries, 3);
     }
-    
+
     // Check deploy configuration
     assert!(proxy.deploy.is_some());
     if let Some(deploy) = &proxy.deploy {
         assert_eq!(deploy.replicas, Some(2));
-        
+
         if let Some(resources) = &deploy.resources {
             if let Some(limits) = &resources.limits {
                 assert_eq!(limits.cpus.as_ref().unwrap(), "0.5");
                 assert_eq!(limits.memory.as_ref().unwrap(), "512M");
             }
         }
-        
+
         if let Some(update_config) = &deploy.update_config {
             assert_eq!(update_config.parallelism, Some(1));
             assert_eq!(update_config.delay.as_ref().unwrap(), "10s");

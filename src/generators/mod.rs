@@ -20,8 +20,8 @@ pub mod update_script;
 pub use anubis::AnubisGenerator;
 pub use docker_compose::DockerComposeGenerator;
 pub use dockerfile::DockerfileGenerator;
-pub use update_script::UpdateScriptGenerator;
 pub use proxy_config::ProxyConfigGenerator;
+pub use update_script::UpdateScriptGenerator;
 
 use crate::{Result, config::Config};
 use std::path::Path;
@@ -47,24 +47,24 @@ impl<'a> CerberusGenerator<'a> {
         // Clean and create output directories
         self.clean_directories().await?;
         self.create_directories().await?;
-        
+
         // Generate Docker Compose
         self.generate_docker_compose().await?;
-        
+
         // Generate proxy configurations
         self.generate_proxy_configs().await?;
-        
+
         // Generate Dockerfiles
         self.generate_dockerfiles().await?;
-        
+
         // Generate Anubis configuration if enabled
         if self.config.anubis.enabled {
             self.generate_anubis_config().await?;
         }
-        
+
         // Generate update script
         self.generate_update_script().await?;
-        
+
         tracing::info!("All configurations generated successfully");
         Ok(())
     }
@@ -99,10 +99,14 @@ impl<'a> CerberusGenerator<'a> {
         for proxy in &self.config.proxies {
             let proxy_dir = format!("{}/proxy-configs/{}", self.output_dir, proxy.name);
             let dockerfile_dir = format!("{}/dockerfiles/{}", self.output_dir, proxy.name);
-            
+
             fs::create_dir_all(&proxy_dir).await?;
             fs::create_dir_all(&dockerfile_dir).await?;
-            tracing::debug!("Created proxy directories: {}, {}", proxy_dir, dockerfile_dir);
+            tracing::debug!(
+                "Created proxy directories: {}, {}",
+                proxy_dir,
+                dockerfile_dir
+            );
         }
 
         Ok(())
@@ -112,87 +116,95 @@ impl<'a> CerberusGenerator<'a> {
     async fn generate_docker_compose(&self) -> Result<()> {
         let generator = DockerComposeGenerator::new(self.config);
         let yaml_content = generator.generate()?;
-        
+
         let file_path = format!("{}/docker-compose.yaml", self.output_dir);
         fs::write(&file_path, yaml_content).await?;
         tracing::info!("Generated Docker Compose: {}", file_path);
-        
+
         Ok(())
     }
 
     /// Generate proxy configurations
     async fn generate_proxy_configs(&self) -> Result<()> {
         let generator = ProxyConfigGenerator::new(self.config);
-        
+
         for proxy in &self.config.proxies {
             match proxy.proxy_type.as_str() {
                 "nginx" => {
                     // Generate multiple Nginx config files
                     let configs = generator.generate_nginx_configs(proxy)?;
                     for (filename, content) in configs {
-                        let file_path = format!("{}/proxy-configs/{}/conf.d/{}", self.output_dir, proxy.name, filename);
-                        
+                        let file_path = format!(
+                            "{}/proxy-configs/{}/conf.d/{}",
+                            self.output_dir, proxy.name, filename
+                        );
+
                         // Create conf.d directory if it doesn't exist
-                        let conf_dir = format!("{}/proxy-configs/{}/conf.d", self.output_dir, proxy.name);
+                        let conf_dir =
+                            format!("{}/proxy-configs/{}/conf.d", self.output_dir, proxy.name);
                         fs::create_dir_all(&conf_dir).await?;
-                        
+
                         fs::write(&file_path, content).await?;
                         tracing::info!("Generated nginx config: {}", file_path);
                     }
-                },
+                }
                 _ => {
                     // Generate single config file for other proxy types
                     let config_content = generator.generate_for_proxy(proxy)?;
-                    let config_file = ProxyConfigGenerator::get_file_extension(proxy.proxy_type.as_str());
-                    let file_path = format!("{}/proxy-configs/{}/{}", self.output_dir, proxy.name, config_file);
-                    
+                    let config_file =
+                        ProxyConfigGenerator::get_file_extension(proxy.proxy_type.as_str());
+                    let file_path = format!(
+                        "{}/proxy-configs/{}/{}",
+                        self.output_dir, proxy.name, config_file
+                    );
+
                     fs::write(&file_path, config_content).await?;
                     tracing::info!("Generated {} config: {}", proxy.proxy_type, file_path);
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Generate Dockerfiles
     async fn generate_dockerfiles(&self) -> Result<()> {
         let generator = DockerfileGenerator::new(self.config);
-        
+
         for proxy in &self.config.proxies {
             let dockerfile_content = generator.generate_for_proxy(proxy)?;
             let file_path = format!("{}/dockerfiles/{}/Dockerfile", self.output_dir, proxy.name);
-            
+
             fs::write(&file_path, dockerfile_content).await?;
             tracing::info!("Generated Dockerfile: {}", file_path);
         }
-        
+
         // Generate multi-stage Dockerfile
         let multi_stage_content = generator.generate_multi_stage()?;
         let multi_stage_path = format!("{}/Dockerfile.multi-stage", self.output_dir);
         fs::write(&multi_stage_path, multi_stage_content).await?;
         tracing::info!("Generated multi-stage Dockerfile: {}", multi_stage_path);
-        
+
         Ok(())
     }
 
     /// Generate Anubis configuration
     async fn generate_anubis_config(&self) -> Result<()> {
         let generator = AnubisGenerator::new(self.config);
-        
+
         // Generate bot policy
         let bot_policy = generator.generate()?;
         let policy_path = format!("{}/anubis/botPolicy.json", self.output_dir);
         fs::write(&policy_path, bot_policy).await?;
         tracing::info!("Generated Anubis bot policy: {}", policy_path);
-        
+
         // Generate environment configuration
         let env_vars = generator.generate_env_config()?;
         let env_content = env_vars.join("\n");
         let env_path = format!("{}/anubis/.env", self.output_dir);
         fs::write(&env_path, env_content).await?;
         tracing::info!("Generated Anubis environment: {}", env_path);
-        
+
         Ok(())
     }
 
@@ -200,17 +212,17 @@ impl<'a> CerberusGenerator<'a> {
     async fn generate_update_script(&self) -> Result<()> {
         let generator = UpdateScriptGenerator::new(self.config);
         let output_path = Path::new(&self.output_dir);
-        
+
         generator.generate(output_path)?;
         tracing::info!("Generated update script: {}/update.sh", self.output_dir);
-        
+
         Ok(())
     }
 
     /// Validate all generated configurations
     pub async fn validate_generated(&self) -> Result<()> {
         tracing::info!("Validating generated configurations...");
-        
+
         // Check Docker Compose syntax
         let compose_path = format!("{}/docker-compose.yaml", self.output_dir);
         if Path::new(&compose_path).exists() {
@@ -220,13 +232,14 @@ impl<'a> CerberusGenerator<'a> {
                 Ok(_) => tracing::info!("Docker Compose YAML is valid"),
                 Err(e) => {
                     tracing::error!("Docker Compose YAML validation failed: {}", e);
-                    return Err(crate::CerberusError::config(
-                        format!("Invalid Docker Compose YAML: {}", e)
-                    ));
+                    return Err(crate::CerberusError::config(format!(
+                        "Invalid Docker Compose YAML: {}",
+                        e
+                    )));
                 }
             }
         }
-        
+
         // Check Anubis JSON syntax
         let anubis_path = format!("{}/anubis/botPolicy.json", self.output_dir);
         if Path::new(&anubis_path).exists() {
@@ -235,13 +248,14 @@ impl<'a> CerberusGenerator<'a> {
                 Ok(_) => tracing::info!("Anubis bot policy JSON is valid"),
                 Err(e) => {
                     tracing::error!("Anubis JSON validation failed: {}", e);
-                    return Err(crate::CerberusError::config(
-                        format!("Invalid Anubis JSON: {}", e)
-                    ));
+                    return Err(crate::CerberusError::config(format!(
+                        "Invalid Anubis JSON: {}",
+                        e
+                    )));
                 }
             }
         }
-        
+
         tracing::info!("All generated configurations validated successfully");
         Ok(())
     }
