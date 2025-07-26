@@ -161,7 +161,12 @@ config_get_array_table_count() {
     config_is_loaded || return 1
     
     local count=0
-    while config_key_exists "${key}.${count}.name" || config_key_exists "${key}.${count}"; do
+    # Try different ways to detect array table entries
+    while config_key_exists "${key}.${count}.name" || 
+          config_key_exists "${key}.${count}.type" || 
+          config_key_exists "${key}.${count}.domain" || 
+          config_key_exists "${key}.${count}.upstream" ||
+          config_key_exists "${key}.${count}"; do
         ((count++))
     done
     

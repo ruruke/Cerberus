@@ -115,7 +115,6 @@ Cerberusは初回実行時に必要なディレクトリを自動作成します
 
 # テストスイート実行
 ./cerberus.sh test --integration
-./cerberus.sh test --stability --stability-runs 10
 
 # クリーンアップ
 ./cerberus.sh clean --all --confirm
