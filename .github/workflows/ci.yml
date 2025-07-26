@@ -42,7 +42,21 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Run Clippy linting
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        env:
+          RUST_BACKTRACE: 1
+        run: |
+          echo "Rust version info:"
+          rustc --version
+          cargo --version
+          echo ""
+          echo "Step 1: Running Clippy on library..."
+          cargo clippy --lib --verbose -- -D warnings
+          echo "Step 2: Running Clippy on binary..."
+          cargo clippy --bin cerberus --verbose -- -D warnings
+          echo "Step 3: Running Clippy on tests..."
+          cargo clippy --tests --verbose -- -D warnings
+          echo "Step 4: Running Clippy on all targets..."
+          cargo clippy --all-targets --all-features --verbose -- -D warnings
 
       - name: Check TOML syntax  
         run: |
