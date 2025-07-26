@@ -52,7 +52,7 @@ docker-compose.local.yml
 
 # Rust/Cargo generated files
 /target/
-Cargo.lock
+# Cargo.lock - Keep for binary projects to ensure reproducible dependencies
 *.pdb
 
 # Rust backups
