@@ -9,15 +9,18 @@
 //! - **ProxyConfigGenerator**: Generates proxy configuration files (Caddy, Nginx, etc.)
 //! - **DockerfileGenerator**: Generates custom Dockerfiles
 //! - **AnubisGenerator**: Generates Anubis DDoS protection policies
+//! - **UpdateScriptGenerator**: Generates automated deployment shell scripts
 
 pub mod anubis;
 pub mod docker_compose;
 pub mod dockerfile;
 pub mod proxy_config;
+pub mod update_script;
 
 pub use anubis::AnubisGenerator;
 pub use docker_compose::DockerComposeGenerator;
 pub use dockerfile::DockerfileGenerator;
+pub use update_script::UpdateScriptGenerator;
 pub use proxy_config::ProxyConfigGenerator;
 
 use crate::{Result, config::Config};
@@ -58,6 +61,9 @@ impl<'a> CerberusGenerator<'a> {
         if self.config.anubis.enabled {
             self.generate_anubis_config().await?;
         }
+        
+        // Generate update script
+        self.generate_update_script().await?;
         
         tracing::info!("All configurations generated successfully");
         Ok(())
