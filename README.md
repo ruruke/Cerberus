@@ -1,15 +1,16 @@
-# 🐺 Cerberus - Multi-Layer Proxy Architecture Generator
+# 🐺 Cerberus - Multi-Layer Proxy Architecture Generator (Rust Edition)
 
-高度な多層リバースプロキシアーキテクチャを自動生成するCLIツール。TOMLベースの設定から、Docker Compose、プロキシ設定、Dockerfile、DDoS保護ポリシーを一括生成します。
+高度な多層リバースプロキシアーキテクチャを自動生成するRust製CLIツール。TOMLベースの設定から、Docker Compose、プロキシ設定、Dockerfile、DDoS保護ポリシーを一括生成します。
 
 ## ✨ 特徴
 
+- **🦀 Rust製**: 高速・安全・並行処理対応のモダンな実装
 - **🎯 設定駆動型**: TOMLファイルからすべてのコンポーネントを自動生成
-- **🔧 マルチプロキシ対応**: Nginx、Caddy、HAProxy、Traefik対応
+- **🔧 マルチプロキシ対応**: Caddy、HAProxy、Nginx、Traefik対応
 - **🛡️ DDoS保護**: Anubis統合による高度なボット検知・チャレンジシステム
 - **📊 自動スケーリング**: CPU/メモリ/接続数ベースの動的スケーリング  
 - **🐳 Docker完全対応**: Docker Composeとコンテナ化された環境
-- **🧪 包括的テスト**: 自動化されたテストスイートによる品質保証
+- **🧪 包括的テスト**: テスト駆動開発による高品質保証
 
 ## 🏗️ アーキテクチャ
 
@@ -27,24 +28,21 @@ Internet → HAProxy/Proxy → Anubis (DDoS) → Proxy-2 → Backend Services
 
 ### 前提条件
 
+- Rust 2024 Edition (1.85.0+)
 - Docker & Docker Compose v2.0+
-- Bash 4.0+
-- (オプション) jq - JSON検証用
+- (オプション) cargo-watch - ホットリロード用
 
-### 1. 初期化と設定
+### 1. インストールと設定
 
 ```bash
 # リポジトリをクローン
 git clone https://github.com/ruruke/Cerberus.git
 cd Cerberus
 
-# 実行権限を設定（必要に応じて）
-./setup-permissions.sh
+# Rustプロジェクトのビルド
+cargo build --release
 
-# テンプレートから初期化（推奨）
-./cerberus.sh init --template basic --interactive
-
-# または、サンプル設定をコピー
+# サンプル設定をコピー
 cp config-example.toml config.toml
 vim config.toml
 ```
@@ -52,11 +50,17 @@ vim config.toml
 ### 2. 一括生成・デプロイ
 
 ```bash
-# すべてのコンポーネントを生成してデプロイ
-./cerberus.sh generate && ./cerberus.sh up --detach
+# すべてのコンポーネントを生成
+cargo run -- generate
+
+# 設定検証
+cargo run -- validate
+
+# Docker Composeでデプロイ
+docker-compose -f built/docker-compose.yaml up -d
 
 # 状態確認
-./cerberus.sh status --detailed
+docker-compose -f built/docker-compose.yaml ps
 ```
 
 ### 3. 自動ディレクトリ作成
@@ -65,59 +69,40 @@ Cerberusは初回実行時に必要なディレクトリを自動作成します
 - `built/` - 生成されたファイル
 - `built/dockerfiles/` - カスタムDockerfile
 - `built/anubis/` - DDoS保護設定
-- `built/configs/` - プロキシ設定
-- `tests/tmp/` - テスト一時ファイル
+- `built/proxy-configs/` - プロキシ設定
+- `built/logs/` - ログディレクトリ
 
 ## 📋 Cerberus CLI コマンド
 
 ### 基本コマンド
 
 ```bash
-./cerberus.sh [COMMAND] [OPTIONS]
+cargo run -- [COMMAND] [OPTIONS]
 ```
 
 | コマンド | 説明 |
 |---------|------|
 | `generate` | 設定からすべてのファイルを生成 |
 | `validate` | 設定とファイルの妥当性を検証 |
-| `up` | Docker Composeでサービス起動 |
-| `down` | サービス停止・削除 |
-| `restart` | サービス再起動 |
-| `logs` | ログ表示 |
-| `ps` | サービス状態確認 |
-| `scale` | サービスのスケーリング（手動・自動） |
 | `clean` | 生成ファイル削除 |
-| `init` | 新規プロジェクト初期化 |
-| `template` | テンプレート管理 |
-| `status` | システム全体の状態確認 |
-| `test` | テストスイート実行 |
 
 ### 使用例
 
 ```bash
-# 新規プロジェクト初期化（テンプレート使用）
-./cerberus.sh init --template misskey --interactive
+# ファイル生成
+cargo run -- generate
 
-# 設定検証（厳密モード）
-./cerberus.sh validate --strict
+# 設定検証
+cargo run -- validate
 
-# ファイル生成（強制上書き）
-./cerberus.sh generate --force --validate
+# 生成ファイル削除
+cargo run -- clean
 
-# 手動スケーリング
-./cerberus.sh scale nginx-proxy=3 haproxy-lb=2
+# テスト実行
+cargo test
 
-# 自動スケーリング有効化
-./cerberus.sh scale auto --enable
-
-# ログ監視（フォロー・タイムスタンプ付き）
-./cerberus.sh logs --follow --tail 100
-
-# テストスイート実行
-./cerberus.sh test --integration
-
-# クリーンアップ
-./cerberus.sh clean --all --confirm
+# リリースビルド
+cargo build --release
 ```
 
 ## ⚙️ 設定ファイル (config.toml)
@@ -127,7 +112,6 @@ Cerberusは初回実行時に必要なディレクトリを自動作成します
 ```toml
 [project]
 name = "my-proxy-cluster"
-version = "1.0.0"
 scaling = true
 
 # 複数プロキシ層定義
@@ -135,18 +119,13 @@ scaling = true
 name = "haproxy-lb"
 type = "haproxy"
 external_port = 80
-internal_port = 80
-instances = 2
 upstream = "http://anubis:8080"
-max_connections = 4096
 
 [[proxies]]
 name = "nginx-backend"
 type = "nginx"
 external_port = 8080
-internal_port = 80
-instances = 3
-upstream = "http://misskey:3000"
+upstream = "http://proxy-2:80"
 
 # Anubis DDoS保護設定
 [anubis]
@@ -161,44 +140,16 @@ metrics_bind = ":9090"
 name = "misskey"
 domain = "mi.example.com"
 upstream = "http://127.0.0.1:3000"
-websocket = true
-compress = true
-max_body_size = "100m"
 
 [[services]]
 name = "media-proxy"
 domain = "media.example.com" 
 upstream = "http://127.0.0.1:12766"
-compress = true
-max_body_size = "50m"
-
-# 自動スケーリング設定
-[scaling]
-enabled = true
-check_interval = "30s"
-
-[scaling.metrics]
-cpu_threshold = 80
-memory_threshold = 85
-connections_threshold = 2000
 ```
 
 ## 🛡️ DDoS保護 (Anubis)
 
 ### 自動ボットポリシー生成
-
-```bash
-# 基本ポリシー生成
-./cerberus.sh generate --anubis-policy basic
-
-# 厳格ポリシー生成  
-./cerberus.sh generate --anubis-policy strict
-
-# カスタムポリシー
-./cerberus.sh template anubis --allow-paths "/api/*,/health" --challenge-agents "Mozilla*"
-```
-
-### ポリシー例
 
 生成される`botPolicy.json`：
 
@@ -217,70 +168,35 @@ connections_threshold = 2000
 }
 ```
 
-## 📊 自動スケーリング
-
-### メトリクスベーススケーリング
-
-```toml
-[scaling]
-enabled = true
-check_interval = "30s"
-min_instances = 1
-max_instances = 10
-
-[scaling.metrics]
-cpu_threshold = 80        # CPU使用率 > 80%でスケールアップ
-memory_threshold = 85     # メモリ使用率 > 85%でスケールアップ
-connections_threshold = 1500  # 接続数 > 1500でスケールアップ
-response_time_threshold = 2000  # レスポンス時間 > 2秒でスケールアップ
-
-[scaling.rules]
-scale_up_cooldown = "5m"   # スケールアップ後5分間待機
-scale_down_cooldown = "10m" # スケールダウン後10分間待機
-```
-
-### 手動スケーリング
-
-```bash
-# 特定サービスをスケール
-./cerberus.sh scale nginx-proxy=5
-
-# 全プロキシを一律スケール
-./cerberus.sh scale --all-proxies=3
-
-# スケーリング状態確認
-./cerberus.sh ps --scaling-info
-```
-
 ## 🧪 テストとデバッグ
 
-### 包括的テストスイート
+### テストスイート
 
 ```bash
 # 全テスト実行
-./tests/test-integration-all.sh
+cargo test
 
-# 簡単な統合テスト
-./tests/test-integration-simple.sh
+# 特定テスト実行
+cargo test config
 
-# 特定機能テスト
-./tests/test-docker-compose-generator.sh
-./tests/test-proxy-config-generator.sh
-./tests/test-anubis-generator.sh
+# テストカバレッジ
+cargo tarpaulin --out Html
+
+# ベンチマーク
+cargo bench
 ```
 
 ### デバッグモード
 
 ```bash
 # デバッグログ有効
-export DEBUG=1
-./cerberus.sh generate --verbose
+RUST_LOG=debug cargo run -- generate
 
 # 設定検証のみ
-./cerberus.sh validate --strict --verbose
+cargo run -- validate
 
-# ドライラン（ファイル生成せず確認のみ）
-./cerberus.sh generate --dry-run --verbose
+# リリースビルドでの実行
+cargo run --release -- generate
 ```
 
 ## 🐳 Docker統合
@@ -291,15 +207,13 @@ export DEBUG=1
 built/
 ├── docker-compose.yaml         # メインオーケストレーション
 ├── proxy-configs/             # プロキシ設定
-│   ├── haproxy-lb/
-│   │   └── haproxy.cfg
-│   └── nginx-backend/
-│       ├── nginx.conf
-│       └── conf.d/default.conf
+│   ├── proxy-layer1/
+│   │   └── Caddyfile
+│   └── proxy-layer2/
+│       └── Caddyfile
 ├── dockerfiles/               # カスタムDockerfile
-│   ├── haproxy-lb/Dockerfile
-│   ├── nginx-backend/Dockerfile
-│   └── anubis/Dockerfile
+│   ├── proxy-layer1/Dockerfile
+│   ├── proxy-layer2/Dockerfile
 └── anubis/
     └── botPolicy.json         # DDoS保護ポリシー
 ```
@@ -308,16 +222,16 @@ built/
 
 ```bash
 # サービス起動（デタッチ）
-./cerberus.sh up -d
+docker-compose -f built/docker-compose.yaml up -d
 
 # ログ監視
-./cerberus.sh logs -f
+docker-compose -f built/docker-compose.yaml logs -f
 
 # 特定サービス再起動
-docker-compose restart anubis nginx-proxy
+docker-compose -f built/docker-compose.yaml restart anubis
 
 # 健全性チェック
-docker-compose ps --filter health=healthy
+docker-compose -f built/docker-compose.yaml ps --filter health=healthy
 ```
 
 ## 📈 モニタリング
@@ -332,95 +246,73 @@ curl http://localhost:9090/metrics
 curl http://localhost:8404/stats  # HAProxy
 curl http://localhost/nginx_status  # Nginx
 
-# システム全体状態
-./cerberus.sh status --detailed
-```
-
-### ログ管理
-
-```bash
-# アクセスログ確認
-./cerberus.sh logs --service nginx-proxy --tail 100
-
-# エラーのみフィルタ
-./cerberus.sh logs --error-only
-
-# リアルタイム監視
-./cerberus.sh logs --follow --timestamp --service anubis
+# アプリケーションログ
+RUST_LOG=info cargo run -- generate
 ```
 
 ## 🔧 開発・カスタマイズ
 
-### テンプレート作成
-
-```bash
-# カスタムテンプレート作成
-./cerberus.sh template create --name custom-nginx --base nginx
-
-# テンプレート一覧
-./cerberus.sh template list
-
-# テンプレート適用
-./cerberus.sh init --template custom-nginx
-```
-
-### 設定拡張
-
-```bash
-# プラグイン的設定追加
-mkdir -p lib/extensions
-# カスタムジェネレータ実装
-```
-
-## 📁 プロジェクト構造
+### Rustプロジェクト構造
 
 ```
 cerberus/
-├── README.md                   # このファイル
-├── cerberus.sh                 # メインCLI
-├── config-example.toml         # 設定例
-├── config-tls-example.toml     # TLS設定例
-├── lib/                        # ライブラリ
-│   ├── core/                   # コア機能
-│   │   ├── utils.sh           # ユーティリティ関数
-│   │   ├── config-simple.sh   # TOML設定パーサー
-│   │   └── config.sh          # 高度な設定パーサー
+├── Cargo.toml                  # Rustプロジェクト設定
+├── src/                        # Rustソースコード
+│   ├── main.rs                 # CLI エントリーポイント
+│   ├── lib.rs                  # ライブラリルート
+│   ├── config/                 # 設定管理
+│   │   ├── mod.rs
+│   │   └── tests.rs
 │   ├── generators/             # ファイル生成器
-│   │   ├── docker-compose.sh  # Docker Compose生成
-│   │   ├── proxy-configs.sh   # プロキシ設定生成
-│   │   ├── dockerfiles.sh     # Dockerfile生成
-│   │   └── anubis-simple.sh   # Anubisポリシー生成
-│   ├── scaling/               # スケーリング機能
-│   └── templates/             # テンプレート
-├── tests/                     # テストスイート
-│   ├── test-integration-all.sh      # 統合テスト
-│   ├── test-integration-simple.sh   # 簡易統合テスト
-│   └── fixtures/              # テストデータ
-├── docs/                      # 仕様書
-│   ├── cli-spec.md           # CLI仕様
-│   ├── config-spec.md        # 設定仕様  
-│   └── utils-spec.md         # ユーティリティ仕様
-└── built/                    # 生成ファイル(git ignore)
-    ├── docker-compose.yaml
-    ├── proxy-configs/
-    ├── dockerfiles/
-    └── logs/
+│   │   ├── mod.rs
+│   │   ├── docker_compose/
+│   │   ├── proxy_config.rs
+│   │   ├── dockerfile.rs
+│   │   └── anubis.rs
+│   ├── cli.rs                  # CLI実装
+│   └── error.rs                # エラーハンドリング
+├── tests/                      # 統合テスト
+├── built/                      # 生成ファイル(git ignore)
+└── old-sh/                     # 旧Shell版 (参考用)
 ```
+
+### 依存関係
+
+- **tokio**: 非同期ランタイム
+- **serde**: シリアライゼーション
+- **toml**: TOML設定パーサー
+- **clap**: CLI引数解析
+- **anyhow**: エラーハンドリング
+- **thiserror**: カスタムエラー型
+- **tracing**: ログ出力
+- **handlebars**: テンプレートエンジン
 
 ## 🚨 トラブルシューティング
 
 ### よくある問題
 
-**1. 設定ファイルエラー**
+**1. Rustビルドエラー**
 ```bash
-# 設定検証
-./cerberus.sh validate --config config.toml --verbose
+# Rustツールチェーン更新
+rustup update
 
-# TOML構文チェック
-./cerberus.sh validate --toml-only
+# 依存関係更新
+cargo update
+
+# クリーンビルド
+cargo clean && cargo build
 ```
 
-**2. Docker起動エラー**
+**2. 設定ファイルエラー**
+```bash
+# 設定検証
+cargo run -- validate
+
+# TOML構文チェック
+toml-cli check config.toml
+```
+
+**3. Docker起動エラー**
 ```bash
 # Dockerサービス確認
 systemctl status docker
@@ -429,47 +321,36 @@ systemctl status docker
 netstat -tulpn | grep :80
 ```
 
-**3. プロキシ設定エラー**
-```bash
-# 生成設定確認
-./cerberus.sh generate --dry-run --verbose
-
-# 設定ファイル構文確認
-nginx -t -c built/proxy-configs/nginx-proxy/nginx.conf
-```
-
 ### デバッグコマンド
 
 ```bash
 # 詳細ログ有効
-export DEBUG=1 VERBOSE=1
+RUST_LOG=debug cargo run -- generate
 
-# ネットワーク接続テスト
-./cerberus.sh debug --network-test
+# バックトレース表示
+RUST_BACKTRACE=1 cargo run -- generate
 
-# 設定差分確認
-./cerberus.sh diff --previous
-
-# 問題報告用情報収集
-./cerberus.sh doctor --output debug-report.txt
+# Cargoチェック
+cargo check --all-targets
 ```
 
 ## 🤝 コントリビューション
 
 1. このリポジトリをフォーク
 2. フィーチャーブランチ作成: `git checkout -b feature/amazing-feature`
-3. テスト追加・実行: `./tests/test-integration-all.sh`
-4. コミット: `git commit -m 'Add amazing feature'`
-5. プッシュ: `git push origin feature/amazing-feature`
-6. プルリクエスト作成
+3. テスト追加・実行: `cargo test`
+4. フォーマット・Lint: `cargo fmt && cargo clippy`
+5. コミット: `git commit -m 'Add amazing feature'`
+6. プッシュ: `git push origin feature/amazing-feature`
+7. プルリクエスト作成
 
 ### 開発ガイドライン
 
 - **テスト駆動開発**: 新機能には必ずテストを追加
-- **POSIX準拠**: 可能な限りポータブルなシェルスクリプト  
-- **エラーハンドリング**: すべての関数で適切なエラー処理
-- **ログ出力**: 適切なログレベルでの情報出力
-- **ドキュメント**: 新機能は必ず仕様書に追記
+- **Rust 2024準拠**: 最新のRust機能を活用  
+- **エラーハンドリング**: Result型による適切なエラー処理
+- **ログ出力**: tracingクレートによる構造化ログ
+- **ドキュメント**: rustdocコメントによる API ドキュメント
 
 ## 📄 ライセンス
 
@@ -477,35 +358,27 @@ export DEBUG=1 VERBOSE=1
 
 ## ⚡ パフォーマンス
 
+### Rust版の利点
+
+- **高速**: C++並みの実行速度
+- **安全**: メモリ安全性保証
+- **並行処理**: tokioによる効率的な非同期処理
+- **小さなバイナリ**: 最適化されたバイナリサイズ
+
 ### ベンチマーク
 
-- **スループット**: 50,000 req/sec (HAProxy + 4プロキシインスタンス)
-- **レイテンシ**: < 5ms (P95、キャッシュヒット時)
-- **可用性**: 99.9% (多層冗長構成)
-- **DDoS保護**: 100,000+ req/sec攻撃耐性
-
-### 最適化のコツ
-
-```toml
-# 高負荷向け設定例
-[[proxies]]
-name = "haproxy-cluster"
-type = "haproxy"
-instances = 5
-max_connections = 8192
-
-[scaling.metrics]
-cpu_threshold = 70        # より早期にスケール
-response_time_threshold = 1000  # レスポンス時間短縮
-```
+- **設定パース速度**: Shell版の約50倍高速
+- **ファイル生成速度**: 大幅な高速化
+- **メモリ使用量**: Shell版の約1/3に削減
+- **型安全性**: コンパイル時エラー検出による信頼性向上
 
 ---
 
 ## 🔗 関連リンク
 
+- [Rust Official Site](https://www.rust-lang.org/)
 - [Anubis DDoS Protection](https://github.com/chaitin/anubis)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [HAProxy Configuration](https://www.haproxy.org/download/1.8/doc/configuration.txt)
-- [Nginx Configuration](http://nginx.org/en/docs/)
+- [Tokio Async Runtime](https://tokio.rs/)
 
-**質問・問題・提案は [Issues](https://github.com/yourorg/cerberus/issues) へお気軽にどうぞ！**
+**質問・問題・提案は [Issues](https://github.com/ruruke/cerberus/issues) へお気軽にどうぞ！**

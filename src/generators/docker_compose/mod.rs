@@ -75,7 +75,9 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "    container_name: {}", proxy.name).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
         writeln!(output, "    ports:").unwrap();
-        writeln!(output, "      - \"{}:{}\"", proxy.external_port, proxy.internal_port).unwrap();
+        // ポート重複を避けるために、インデックスベースで自動調整
+        let adjusted_port = if index == 0 { proxy.external_port } else { proxy.external_port + index as u16 * 10 };
+        writeln!(output, "      - \"{}:{}\"", adjusted_port, proxy.internal_port).unwrap();
         writeln!(output, "    volumes:").unwrap();
         writeln!(output, "      - ./proxy-configs/{}:{}:ro", proxy.name, self.get_proxy_config_dir(&proxy.proxy_type)).unwrap();
         writeln!(output, "      - ./built/logs:/var/log/nginx:rw").unwrap();

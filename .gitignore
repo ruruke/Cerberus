@@ -50,6 +50,35 @@ node_modules/
 docker-compose.override.yml
 docker-compose.local.yml
 
-# Added by cargo
+# Rust/Cargo generated files
+/target/
+Cargo.lock
+*.pdb
 
-/target
+# Rust backups
+**/*.rs.bk
+
+# Rust build artifacts
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Release binaries
+/release/
+/dist/
+
+# Coverage reports
+tarpaulin-report.html
+coverage/
+*.profraw
+
+# Benchmark results
+criterion/
+
+# IDE files (Rust specific)
+.vscode/settings.json
+.idea/
+
+# Debugging files
+*.dSYM/

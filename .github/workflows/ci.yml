@@ -211,7 +211,7 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os -cargo-
+            ${{ runner.os }}-cargo-
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
