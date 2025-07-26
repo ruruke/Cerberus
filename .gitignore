@@ -1,0 +1,50 @@
+# Generated files (should not be committed)
+built/
+*.generated.*
+
+# Logs
+logs/
+**/*.log
+
+# Environment specific configs (keep examples)
+config.toml
+!config-example.toml
+!config-tls-example.toml
+
+# SSL certificates and keys
+ssl/
+*.pem
+*.crt
+*.key
+
+# Docker volumes and build cache
+.docker/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+*.temp
+.temp/
+.tmp/
+
+# Node modules (if any)
+node_modules/
+
+# Local development overrides
+docker-compose.override.yml
+docker-compose.local.yml
