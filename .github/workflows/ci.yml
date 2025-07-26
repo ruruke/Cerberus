@@ -372,18 +372,21 @@ jobs:
           echo "BATCH_SUCCESS=$success_count" >> $GITHUB_ENV
           echo "BATCH_TOTAL=$batch_runs" >> $GITHUB_ENV
           
-          echo "=== Stability Test Results ==="
-          echo "Successful runs: $success_count/$total_runs"
-          echo "Success rate: $(( success_count * 100 / total_runs ))%"
+          echo "=== Batch Stability Test Results ==="
+          echo "Successful runs: $success_count/$batch_runs"
+          if [ $batch_runs -gt 0 ]; then
+            echo "Success rate: $(( success_count * 100 / batch_runs ))%"
+          fi
           
-          if [ $success_count -eq $total_runs ]; then
-            echo "🎉 All runs passed!"
+          # Each batch should have most runs pass
+          if [ $success_count -eq $batch_runs ]; then
+            echo "🎉 All batch runs passed!"
             exit 0
-          elif [ $success_count -ge 8 ]; then
-            echo "⚠️ Most runs passed (acceptable)"
+          elif [ $success_count -ge 2 ]; then
+            echo "⚠️ Most batch runs passed (acceptable)"
             exit 0
           else
-            echo "❌ Too many failures"
+            echo "❌ Too many batch failures"
             exit 1
           fi
 
