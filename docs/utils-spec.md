@@ -1,32 +1,58 @@
-# Utils Library Specification (lib/core/utils.sh)
+# Core Libraries Specification (Rust Edition)
 
 ## 概要
 
-`lib/core/utils.sh`はCerberusシステム全体で使用される共通関数ライブラリです。ログ出力、エラーハンドリング、ファイル操作、Docker操作など、基盤となる機能を提供します。
+Cerberus Rustエディションは、モジュラー設計による高性能・型安全なコアライブラリシステムを提供します。非同期処理、構造化ログ、エラーハンドリングなど、現代的なシステム開発のベストプラクティスを実装しています。
 
 ## 設計原則
 
-1. **信頼性**: 全ての関数で適切なエラーハンドリング
-2. **一貫性**: 統一されたログ出力とメッセージフォーマット
-3. **移植性**: Linux/macOS/WSL2での動作保証
-4. **拡張性**: 新機能の追加が容易な構造
+1. **メモリ安全性**: Rust所有権システムによる安全なメモリ管理
+2. **型安全性**: コンパイル時型チェックによるエラー排除
+3. **パフォーマンス**: ゼロコスト抽象化と効率的な非同期処理
+4. **拡張性**: トレイト指向設計による機能拡張容易性
 
-## 機能仕様
+## コアライブラリ構成
 
-### 1. 定数・設定
+### 1. エラーハンドリング (src/error.rs)
 
-```bash
-# ディレクトリパス
-SCRIPT_DIR      # Cerberusルートディレクトリ
-CONFIG_FILE     # config.tomlのパス
-BUILT_DIR       # 生成物ディレクトリ
-LIB_DIR         # ライブラリディレクトリ
+```rust
+#[derive(Error, Debug)]
+pub enum CerberusError {
+    #[error("Configuration error: {0}")]
+    Config(String),
+    
+    #[error("TOML parsing error in {file}: {source}")]
+    TomlParse {
+        file: String,
+        #[source]
+        source: toml::de::Error,
+    },
+    
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    
+    #[error("Template rendering error: {0}")]
+    Template(#[from] handlebars::RenderError),
+}
+```
 
-# 色定数
-RED, GREEN, YELLOW, BLUE, PURPLE, CYAN, WHITE, NC
+### 2. 非同期処理基盤
 
-# ログレベル
-LOG_DEBUG=0, LOG_INFO=1, LOG_WARN=2, LOG_ERROR=3
+- **tokio ランタイム**: 非ブロッキングI/O・並行処理
+- **async/await**: 高効率な非同期プログラミングモデル
+- **futures**: 並行タスク管理・エラー処理
+
+### 3. 構造化ログ (tracing)
+
+```rust
+use tracing::{debug, info, warn, error, instrument};
+
+#[instrument]
+async fn generate_config() -> Result<(), CerberusError> {
+    info!("Starting configuration generation");
+    debug!("Processing TOML file: {}", config_path);
+    // ...
+}
 ```
 
 ### 2. ログ機能

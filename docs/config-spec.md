@@ -1,30 +1,42 @@
-# Config Library Specification (lib/core/config.sh)
+# Configuration System Specification (Rust Edition)
 
 ## 概要
 
-`lib/core/config.sh`はTOML形式の設定ファイル（config.toml）を解析し、Cerberusシステム全体で利用可能な設定情報を提供するライブラリです。
+Cerberus設定システムは、serde + tomlクレートを使用した型安全なTOML設定解析システムです。コンパイル時型チェックにより、設定エラーを事前に検出し、高性能な設定管理を実現します。
 
 ## 設計原則
 
-1. **正確性**: TOML仕様に準拠した解析
-2. **エラー検出**: 設定エラーの詳細な報告
-3. **パフォーマンス**: キャッシュ機能による高速アクセス
-4. **拡張性**: 新しい設定項目の追加が容易
+1. **型安全性**: serde Deserialize traits によるコンパイル時検証
+2. **パフォーマンス**: ゼロコピー解析とメモリ効率最適化
+3. **エラー報告**: thiserror による詳細エラー情報
+4. **拡張性**: derive マクロによる新設定項目の容易な追加
 
-## 対応TOML仕様
+## 型システム
 
-### サポート機能
-- **基本データ型**: String, Integer, Float, Boolean, Datetime
-- **配列**: 基本型の配列、テーブル配列
-- **テーブル**: 標準テーブル、インラインテーブル
-- **配列テーブル**: `[[section]]` 形式
-- **ネスト**: 深いネスト構造対応
-- **コメント**: `#` による行コメント
+### 型安全な設定構造体
+```rust
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Config {
+    pub project: ProjectConfig,
+    pub proxies: Vec<ProxyConfig>,
+    pub services: Vec<ServiceConfig>,
+    pub anubis: Option<AnubisConfig>,
+}
 
-### 制限事項
-- **複雑なデータ型**: 複合型の一部制限
-- **Unicode**: 基本的なUTF-8サポート
-- **大容量ファイル**: メモリ効率を考慮した上限設定
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ProxyConfig {
+    pub name: String,
+    pub proxy_type: String,
+    pub external_port: u16,
+    pub upstream: String,
+}
+```
+
+### 検証レベル
+- **構文検証**: TOML パーサーによる構文チェック
+- **型検証**: serde による型適合性検証  
+- **意味検証**: カスタムバリデーターによる論理チェック
+- **参照検証**: 依存関係・循環参照チェック
 
 ## 機能仕様
 
