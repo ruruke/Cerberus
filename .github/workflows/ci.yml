@@ -484,33 +484,113 @@ jobs:
       - name: Build optimized binary
         run: cargo build --release
 
-      - name: Run basic performance tests
+      - name: Run Rust performance benchmarks
         run: |
-          echo "Running basic performance tests..."
+          echo "Running comprehensive Rust performance benchmarks..."
           
-          # Test configuration loading performance
+          # Benchmark 1: CLI startup time
+          echo "Benchmarking CLI startup time..."
+          echo "--- Help command performance ---"
           time ./target/release/cerberus --help
           
-          # Test configuration generation performance with test config
-          cat > perf-test.toml << 'EOF'
+          echo "--- Version command performance ---"
+          time ./target/release/cerberus --version
+          
+          # Benchmark 2: Configuration processing performance
+          echo "Creating performance test configurations..."
+          
+          # Small config
+          cat > perf-small.toml << 'EOF'
           [project]
-          name = "performance-test"
+          name = "perf-small"
+          scaling = false
           
           [[proxies]]
-          name = "perf-proxy"
-          type = "caddy"
+          name = "small-proxy"
+          proxy_type = "caddy"
           external_port = 80
+          upstream = "http://app:3000"
           
           [[services]]
-          name = "perf-service"
-          domain = "perf.example.com"
+          name = "small-service"
+          domain = "small.example.com"
           upstream = "http://192.0.2.1:3000"
           EOF
           
-          echo "Testing configuration validation performance..."
-          time ./target/release/cerberus -c perf-test.toml validate || echo "Performance test completed"
+          # Large config with multiple services
+          cat > perf-large.toml << 'EOF'
+          [project]
+          name = "perf-large"
+          scaling = true
           
-          echo "✅ Performance tests completed"
+          [anubis]
+          enabled = true
+          bind = ":8080"
+          target = "http://proxy-layer2:80"
+          difficulty = 5
+          metrics_bind = ":9090"
+          
+          [[proxies]]
+          name = "proxy-layer1"
+          proxy_type = "caddy"
+          external_port = 80
+          upstream = "http://anubis:8080"
+          instances = 5
+          
+          [[proxies]]
+          name = "proxy-layer2"
+          proxy_type = "caddy"
+          external_port = 8080
+          upstream = "http://backend-services"
+          instances = 3
+          EOF
+          
+          # Add 20 services to test scaling
+          for i in {1..20}; do
+            cat >> perf-large.toml << EOF
+          
+          [[services]]
+          name = "service-$i"
+          domain = "service$i.example.com"
+          upstream = "http://192.0.2.$((10 + i)):3000"
+          EOF
+          done
+          
+          echo "--- Small configuration validation performance ---"
+          time ./target/release/cerberus validate -c perf-small.toml
+          
+          echo "--- Large configuration validation performance ---"
+          time ./target/release/cerberus validate -c perf-large.toml
+          
+          echo "--- Small configuration generation performance ---"
+          time ./target/release/cerberus generate -c perf-small.toml
+          
+          echo "--- Large configuration generation performance ---"
+          time ./target/release/cerberus generate -c perf-large.toml
+          
+          # Benchmark 3: Memory usage estimation
+          echo "--- Memory usage test ---"
+          echo "Binary size:"
+          ls -lh ./target/release/cerberus
+          
+          echo "Processing large configuration memory usage:"
+          /usr/bin/time -v ./target/release/cerberus generate -c perf-large.toml 2>&1 | grep -E "(Maximum resident set size|User time|System time|Elapsed)"
+          
+          # Benchmark 4: Concurrent operations
+          echo "--- Concurrent validation test ---"
+          (
+            time ./target/release/cerberus validate -c perf-small.toml &
+            time ./target/release/cerberus validate -c perf-large.toml &
+            wait
+          )
+          
+          echo "--- Generated file sizes ---"
+          if [ -f "built/docker-compose.yaml" ]; then
+            wc -l built/docker-compose.yaml
+            du -h built/
+          fi
+          
+          echo "✅ All Rust performance benchmarks completed"
 
   # Notification
   notify:
