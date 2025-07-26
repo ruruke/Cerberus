@@ -1,17 +1,33 @@
 //! # Cerberus CLI
 //!
 //! Command-line interface for the Cerberus multi-layer proxy architecture system.
+//!
+//! ## Usage
+//!
+//! ```bash
+//! # Generate all configuration files
+//! cerberus generate
+//!
+//! # Validate existing configuration
+//! cerberus validate
+//!
+//! # Clean generated files
+//! cerberus clean
+//! ```
 
 use clap::{Arg, Command};
 use std::path::PathBuf;
-use tracing::{info, error};
-use tracing_subscriber;
+use tracing::{error, info};
 
 use cerberus::{Cerberus, Result};
 
+/// Main entry point for the Cerberus CLI application
+///
+/// Sets up command-line argument parsing, logging, and coordinates
+/// execution of the requested subcommand.
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize logging
+    // Initialize structured logging with tracing
     tracing_subscriber::fmt::init();
 
     let matches = Command::new("cerberus")
@@ -23,7 +39,7 @@ async fn main() -> Result<()> {
                 .long("config")
                 .value_name("FILE")
                 .help("Configuration file path")
-                .default_value("config.toml")
+                .default_value("config.toml"),
         )
         .arg(
             Arg::new("output")
@@ -31,7 +47,7 @@ async fn main() -> Result<()> {
                 .long("output")
                 .value_name("DIR")
                 .help("Output directory for generated files")
-                .default_value("built")
+                .default_value("built"),
         )
         .subcommand(
             Command::new("generate")
@@ -40,17 +56,11 @@ async fn main() -> Result<()> {
                     Arg::new("force")
                         .long("force")
                         .help("Overwrite existing files")
-                        .action(clap::ArgAction::SetTrue)
-                )
+                        .action(clap::ArgAction::SetTrue),
+                ),
         )
-        .subcommand(
-            Command::new("validate")
-                .about("Validate configuration and generated files")
-        )
-        .subcommand(
-            Command::new("clean")
-                .about("Clean output directory")
-        )
+        .subcommand(Command::new("validate").about("Validate configuration and generated files"))
+        .subcommand(Command::new("clean").about("Clean output directory"))
         .get_matches();
 
     let config_path = PathBuf::from(matches.get_one::<String>("config").unwrap());

@@ -2,7 +2,10 @@
 //!
 //! Generates proxy configuration files (Caddy, Nginx, HAProxy, Traefik) from Cerberus configuration.
 
-use crate::{config::{Config, ProxyConfig}, Result};
+use crate::{
+    Result,
+    config::{Config, ProxyConfig},
+};
 
 /// Generator for proxy configurations
 pub struct ProxyConfigGenerator<'a> {

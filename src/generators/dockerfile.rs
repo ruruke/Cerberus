@@ -2,7 +2,10 @@
 //!
 //! Generates Dockerfiles for proxy services from Cerberus configuration.
 
-use crate::{config::{Config, ProxyConfig}, Result};
+use crate::{
+    Result,
+    config::{Config, ProxyConfig},
+};
 
 /// Generator for Dockerfiles
 pub struct DockerfileGenerator<'a> {

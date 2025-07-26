@@ -14,27 +14,27 @@ use crate::{CerberusError, Result};
 pub struct Config {
     /// Project-level configuration
     pub project: ProjectConfig,
-    
+
     /// Global settings
     #[serde(default)]
     pub global: GlobalConfig,
-    
+
     /// TLS/SSL configuration
     #[serde(default)]
     pub tls: TlsConfig,
-    
+
     /// Anubis DDoS protection configuration
     #[serde(default)]
     pub anubis: AnubisConfig,
-    
+
     /// Proxy layer configurations
     #[serde(default)]
     pub proxies: Vec<ProxyConfig>,
-    
+
     /// Backend service configurations
     #[serde(default)]
     pub services: Vec<ServiceConfig>,
-    
+
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
@@ -45,7 +45,7 @@ pub struct Config {
 pub struct ProjectConfig {
     /// Project name
     pub name: String,
-    
+
     /// Enable auto-scaling
     #[serde(default)]
     pub scaling: bool,
@@ -57,7 +57,7 @@ pub struct GlobalConfig {
     /// Automatic HTTPS setting
     #[serde(default = "default_auto_https")]
     pub auto_https: String,
-    
+
     /// Admin API setting
     #[serde(default = "default_admin")]
     pub admin: String,
@@ -81,29 +81,19 @@ fn default_admin() -> String {
 }
 
 /// TLS/SSL configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TlsConfig {
     /// Enable TLS
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// CA configuration
     #[serde(default)]
     pub ca: Option<CaConfig>,
-    
+
     /// Certificate configurations
     #[serde(default)]
     pub certificates: Vec<CertificateConfig>,
-}
-
-impl Default for TlsConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            ca: None,
-            certificates: Vec::new(),
-        }
-    }
 }
 
 /// Certificate Authority configuration
@@ -112,10 +102,10 @@ pub struct CaConfig {
     /// Enable internal CA
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// Root certificate path
     pub root_cert: Option<String>,
-    
+
     /// Root key path
     pub root_key: Option<String>,
 }
@@ -125,10 +115,10 @@ pub struct CaConfig {
 pub struct CertificateConfig {
     /// Domain pattern (e.g., "*.example.com")
     pub domain: String,
-    
+
     /// Certificate file path
     pub cert_file: String,
-    
+
     /// Private key file path
     pub key_file: String,
 }
@@ -139,19 +129,19 @@ pub struct AnubisConfig {
     /// Enable Anubis DDoS protection
     #[serde(default)]
     pub enabled: bool,
-    
+
     /// Bind address for Anubis
     #[serde(default = "default_anubis_bind")]
     pub bind: String,
-    
+
     /// Target upstream for protected traffic
     #[serde(default = "default_anubis_target")]
     pub target: String,
-    
+
     /// Challenge difficulty level (1-10)
     #[serde(default = "default_anubis_difficulty")]
     pub difficulty: u8,
-    
+
     /// Metrics endpoint bind address
     #[serde(default = "default_anubis_metrics_bind")]
     pub metrics_bind: String,
@@ -212,13 +202,13 @@ pub struct RouteConfig {
     /// Type of routing
     #[serde(rename = "type")]
     pub route_type: RouteType,
-    
+
     /// Domain this route applies to
     pub domain: String,
-    
+
     /// Upstream destination
     pub upstream: String,
-    
+
     /// Paths that bypass DDoS protection (for conditional routing)
     #[serde(default)]
     pub bypass_paths: Vec<String>,
@@ -229,38 +219,38 @@ pub struct RouteConfig {
 pub struct ProxyConfig {
     /// Proxy instance name
     pub name: String,
-    
+
     /// Proxy software type
     #[serde(rename = "type")]
     pub proxy_type: ProxyType,
-    
+
     /// External port exposed to internet
     pub external_port: u16,
-    
+
     /// Internal container port
     #[serde(default = "default_internal_port")]
     pub internal_port: u16,
-    
+
     /// Proxy layer number
     #[serde(default)]
     pub layer: Option<u8>,
-    
+
     /// Number of instances for scaling
     #[serde(default = "default_instances")]
     pub instances: u8,
-    
+
     /// Load balancing algorithm
     #[serde(default)]
     pub algorithm: Option<String>,
-    
+
     /// Maximum connections
     #[serde(default)]
     pub max_connections: Option<u32>,
-    
+
     /// Default upstream for unmatched requests
     #[serde(default)]
     pub default_upstream: Option<String>,
-    
+
     /// Specific routing configurations
     #[serde(default)]
     pub routes: Vec<RouteConfig>,
@@ -279,25 +269,25 @@ fn default_instances() -> u8 {
 pub struct ServiceConfig {
     /// Service name
     pub name: String,
-    
+
     /// Domain this service serves
     pub domain: String,
-    
+
     /// Upstream URL
     pub upstream: String,
-    
+
     /// Enable WebSocket support
     #[serde(default)]
     pub websocket: bool,
-    
+
     /// Enable compression
     #[serde(default = "default_compression")]
     pub compress: bool,
-    
+
     /// Maximum request body size
     #[serde(default = "default_max_body_size")]
     pub max_body_size: String,
-    
+
     /// Custom request headers
     #[serde(flatten)]
     pub headers: HashMap<String, String>,
@@ -317,11 +307,11 @@ pub struct LoggingConfig {
     /// Log level
     #[serde(default = "default_log_level")]
     pub level: String,
-    
+
     /// Log format
     #[serde(default = "default_log_format")]
     pub format: String,
-    
+
     /// Log output destination
     #[serde(default = "default_log_output")]
     pub output: String,
@@ -358,17 +348,16 @@ impl Config {
     /// # Errors
     /// Returns error if file cannot be read or parsed
     pub fn load(path: &Path) -> Result<Self> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| CerberusError::io(path, e))?;
-            
-        let config: Config = toml::from_str(&content)
-            .map_err(|e| CerberusError::toml_parse(path, e))?;
-            
+        let content = std::fs::read_to_string(path).map_err(|e| CerberusError::io(path, e))?;
+
+        let config: Config =
+            toml::from_str(&content).map_err(|e| CerberusError::toml_parse(path, e))?;
+
         config.validate()?;
-        
+
         Ok(config)
     }
-    
+
     /// Validate the configuration
     ///
     /// Performs semantic validation beyond what's possible with serde
@@ -380,58 +369,62 @@ impl Config {
         if self.project.name.trim().is_empty() {
             return Err(CerberusError::validation("Project name cannot be empty"));
         }
-        
+
         // Validate proxy configurations
         for (index, proxy) in self.proxies.iter().enumerate() {
             if proxy.name.trim().is_empty() {
-                return Err(CerberusError::validation(
-                    format!("Proxy {} name cannot be empty", index)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Proxy {} name cannot be empty",
+                    index
+                )));
             }
-            
+
             if proxy.external_port == 0 {
-                return Err(CerberusError::validation(
-                    format!("Proxy {} external_port must be greater than 0", proxy.name)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Proxy {} external_port must be greater than 0",
+                    proxy.name
+                )));
             }
-            
+
             if proxy.instances == 0 {
-                return Err(CerberusError::validation(
-                    format!("Proxy {} instances must be greater than 0", proxy.name)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Proxy {} instances must be greater than 0",
+                    proxy.name
+                )));
             }
         }
-        
+
         // Validate service configurations
         for (index, service) in self.services.iter().enumerate() {
             if service.name.trim().is_empty() {
-                return Err(CerberusError::validation(
-                    format!("Service {} name cannot be empty", index)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Service {} name cannot be empty",
+                    index
+                )));
             }
-            
+
             if service.domain.trim().is_empty() {
-                return Err(CerberusError::validation(
-                    format!("Service {} domain cannot be empty", service.name)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Service {} domain cannot be empty",
+                    service.name
+                )));
             }
-            
+
             if service.upstream.trim().is_empty() {
-                return Err(CerberusError::validation(
-                    format!("Service {} upstream cannot be empty", service.name)
-                ));
+                return Err(CerberusError::validation(format!(
+                    "Service {} upstream cannot be empty",
+                    service.name
+                )));
             }
         }
-        
+
         // Validate Anubis configuration
-        if self.anubis.enabled {
-            if self.anubis.difficulty > 10 {
-                return Err(CerberusError::validation(
-                    "Anubis difficulty must be between 1 and 10"
-                ));
-            }
+        if self.anubis.enabled && self.anubis.difficulty > 10 {
+            return Err(CerberusError::validation(
+                "Anubis difficulty must be between 1 and 10",
+            ));
         }
-        
+
         Ok(())
     }
 }

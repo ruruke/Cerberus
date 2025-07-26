@@ -2,7 +2,7 @@
 //!
 //! Generates Anubis DDoS protection configuration from Cerberus settings.
 
-use crate::{config::Config, Result};
+use crate::{Result, config::Config};
 
 /// Generator for Anubis configurations
 pub struct AnubisGenerator<'a> {

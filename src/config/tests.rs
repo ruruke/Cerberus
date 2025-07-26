@@ -11,7 +11,8 @@ use tempfile::NamedTempFile;
 /// Helper function to create a temporary TOML file with given content
 fn create_temp_config(content: &str) -> NamedTempFile {
     let mut file = NamedTempFile::new().expect("Failed to create temp file");
-    file.write_all(content.as_bytes()).expect("Failed to write to temp file");
+    file.write_all(content.as_bytes())
+        .expect("Failed to write to temp file");
     file
 }
 
@@ -143,7 +144,10 @@ output = "/var/log/cerberus.log"
     assert_eq!(config.proxies[0].instances, 2);
     assert_eq!(config.proxies[0].routes.len(), 2);
     assert_eq!(config.proxies[0].routes[0].route_type, RouteType::Direct);
-    assert_eq!(config.proxies[0].routes[1].route_type, RouteType::Conditional);
+    assert_eq!(
+        config.proxies[0].routes[1].route_type,
+        RouteType::Conditional
+    );
     assert_eq!(config.proxies[0].routes[1].bypass_paths.len(), 2);
 
     // Test service configs
@@ -273,10 +277,22 @@ headers_response_x_custom = "CustomValue"
     let config = Config::load(temp_file.path()).expect("Failed to load config");
 
     let service = &config.services[0];
-    assert_eq!(service.headers.get("headers_request_host"), Some(&"backend.internal.com".to_string()));
-    assert_eq!(service.headers.get("headers_request_authorization"), Some(&"Bearer token123".to_string()));
-    assert_eq!(service.headers.get("headers_response_cache_control"), Some(&"public, max-age=3600".to_string()));
-    assert_eq!(service.headers.get("headers_response_x_custom"), Some(&"CustomValue".to_string()));
+    assert_eq!(
+        service.headers.get("headers_request_host"),
+        Some(&"backend.internal.com".to_string())
+    );
+    assert_eq!(
+        service.headers.get("headers_request_authorization"),
+        Some(&"Bearer token123".to_string())
+    );
+    assert_eq!(
+        service.headers.get("headers_response_cache_control"),
+        Some(&"public, max-age=3600".to_string())
+    );
+    assert_eq!(
+        service.headers.get("headers_response_x_custom"),
+        Some(&"CustomValue".to_string())
+    );
 }
 
 #[test]
@@ -298,9 +314,14 @@ upstream = "http://192.0.2.1:3000"
 
     let temp_file = create_temp_config(content);
     let result = Config::load(temp_file.path());
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Project name cannot be empty"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Project name cannot be empty")
+    );
 }
 
 #[test]
@@ -322,9 +343,14 @@ upstream = "http://192.0.2.1:3000"
 
     let temp_file = create_temp_config(content);
     let result = Config::load(temp_file.path());
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("name cannot be empty"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("name cannot be empty")
+    );
 }
 
 #[test]
@@ -346,9 +372,14 @@ upstream = "http://192.0.2.1:3000"
 
     let temp_file = create_temp_config(content);
     let result = Config::load(temp_file.path());
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("external_port must be greater than 0"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("external_port must be greater than 0")
+    );
 }
 
 #[test]
@@ -374,9 +405,14 @@ upstream = "http://192.0.2.1:3000"
 
     let temp_file = create_temp_config(content);
     let result = Config::load(temp_file.path());
-    
+
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("difficulty must be between 1 and 10"));
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("difficulty must be between 1 and 10")
+    );
 }
 
 #[test]
@@ -425,23 +461,23 @@ name = "invalid-toml"
 
     let temp_file = create_temp_config(content);
     let result = Config::load(temp_file.path());
-    
+
     assert!(result.is_err());
     // Should be a TOML parsing error
     match result.unwrap_err() {
-        CerberusError::TomlParse { .. } => {},
+        CerberusError::TomlParse { .. } => {}
         _ => panic!("Expected TomlParse error"),
     }
 }
 
 #[test]
 fn test_file_not_found() {
-    let result = Config::load(&std::path::Path::new("/nonexistent/config.toml"));
-    
+    let result = Config::load(std::path::Path::new("/nonexistent/config.toml"));
+
     assert!(result.is_err());
     // Should be an I/O error
     match result.unwrap_err() {
-        CerberusError::Io { .. } => {},
+        CerberusError::Io { .. } => {}
         _ => panic!("Expected Io error"),
     }
 }

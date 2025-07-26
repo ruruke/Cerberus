@@ -2,7 +2,10 @@
 //!
 //! Generates docker-compose.yaml files from Cerberus configuration.
 
-use crate::{config::{Config, ProxyConfig, ProxyType}, Result, CerberusError};
+use crate::{
+    CerberusError, Result,
+    config::{Config, ProxyConfig, ProxyType},
+};
 use std::fmt::Write;
 use std::process::Command;
 
@@ -20,7 +23,7 @@ impl<'a> DockerComposeGenerator<'a> {
     /// Generate Docker Compose YAML content
     pub fn generate(&self) -> Result<String> {
         let mut output = String::new();
-        
+
         // Add header
         writeln!(output, "version: '3.8'").unwrap();
         writeln!(output).unwrap();
@@ -28,14 +31,14 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "# Project: {}", self.config.project.name).unwrap();
         writeln!(output, "# Configuration: config.toml").unwrap();
         writeln!(output).unwrap();
-        
+
         // Generate services section
         writeln!(output, "services:").unwrap();
-        
+
         // Generate proxy services
         for (index, proxy) in self.config.proxies.iter().enumerate() {
             self.generate_proxy_service(&mut output, proxy, index)?;
-            
+
             // Generate scaled instances if needed
             if self.config.project.scaling && proxy.instances > 1 {
                 for instance in 2..=proxy.instances {
@@ -43,12 +46,12 @@ impl<'a> DockerComposeGenerator<'a> {
                 }
             }
         }
-        
+
         // Generate Anubis service if enabled
         if self.config.anubis.enabled {
             self.generate_anubis_service(&mut output)?;
         }
-        
+
         // Generate backend services
         for service in &self.config.services {
             // Only generate container if upstream is not an external IP
@@ -56,73 +59,152 @@ impl<'a> DockerComposeGenerator<'a> {
                 self.generate_backend_service(&mut output, service)?;
             }
         }
-        
+
         // Generate networks section
         self.generate_networks(&mut output)?;
-        
+
         // Generate volumes section
         self.generate_volumes(&mut output)?;
-        
+
         Ok(output)
     }
 
     /// Generate a proxy service definition
-    fn generate_proxy_service(&self, output: &mut String, proxy: &ProxyConfig, index: usize) -> Result<()> {
+    fn generate_proxy_service(
+        &self,
+        output: &mut String,
+        proxy: &ProxyConfig,
+        index: usize,
+    ) -> Result<()> {
         writeln!(output).unwrap();
-        writeln!(output, "  # Proxy Layer: {} ({})", proxy.name, proxy.proxy_type.to_string()).unwrap();
+        writeln!(
+            output,
+            "  # Proxy Layer: {} ({})",
+            proxy.name,
+            proxy.proxy_type.to_string()
+        )
+        .unwrap();
         writeln!(output, "  {}:", proxy.name).unwrap();
-        writeln!(output, "    image: {}", self.get_proxy_image(&proxy.proxy_type)).unwrap();
+        writeln!(
+            output,
+            "    image: {}",
+            self.get_proxy_image(&proxy.proxy_type)
+        )
+        .unwrap();
         writeln!(output, "    container_name: {}", proxy.name).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
         writeln!(output, "    ports:").unwrap();
         // ポート重複を避けるために、インデックスベースで自動調整
-        let adjusted_port = if index == 0 { proxy.external_port } else { proxy.external_port + index as u16 * 10 };
-        writeln!(output, "      - \"{}:{}\"", adjusted_port, proxy.internal_port).unwrap();
+        let adjusted_port = if index == 0 {
+            proxy.external_port
+        } else {
+            proxy.external_port + index as u16 * 10
+        };
+        writeln!(
+            output,
+            "      - \"{}:{}\"",
+            adjusted_port, proxy.internal_port
+        )
+        .unwrap();
         writeln!(output, "    volumes:").unwrap();
-        writeln!(output, "      - ./proxy-configs/{}:{}:ro", proxy.name, self.get_proxy_config_dir(&proxy.proxy_type)).unwrap();
+        writeln!(
+            output,
+            "      - ./proxy-configs/{}:{}:ro",
+            proxy.name,
+            self.get_proxy_config_dir(&proxy.proxy_type)
+        )
+        .unwrap();
         writeln!(output, "      - ./built/logs:/var/log/nginx:rw").unwrap();
         writeln!(output, "    networks:").unwrap();
         writeln!(output, "      - front-net").unwrap();
         writeln!(output, "      - back-net").unwrap();
-        
+
         // Add dependencies if needed
         self.generate_proxy_dependencies(output, proxy, index)?;
-        
+
         // Add environment variables
         writeln!(output, "    environment:").unwrap();
         writeln!(output, "      - PROXY_LAYER={}", proxy.layer.unwrap_or(0)).unwrap();
-        writeln!(output, "      - UPSTREAM={}", proxy.default_upstream.as_deref().unwrap_or("")).unwrap();
-        writeln!(output, "      - MAX_CONNECTIONS={}", proxy.max_connections.unwrap_or(1024)).unwrap();
-        
+        writeln!(
+            output,
+            "      - UPSTREAM={}",
+            proxy.default_upstream.as_deref().unwrap_or("")
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "      - MAX_CONNECTIONS={}",
+            proxy.max_connections.unwrap_or(1024)
+        )
+        .unwrap();
+
         // Add labels
         writeln!(output, "    labels:").unwrap();
         writeln!(output, "      - \"cerberus.service=proxy\"").unwrap();
-        writeln!(output, "      - \"cerberus.layer={}\"", proxy.layer.unwrap_or(0)).unwrap();
-        writeln!(output, "      - \"cerberus.type={}\"", proxy.proxy_type.to_string()).unwrap();
-        
+        writeln!(
+            output,
+            "      - \"cerberus.layer={}\"",
+            proxy.layer.unwrap_or(0)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "      - \"cerberus.type={}\"",
+            proxy.proxy_type.to_string()
+        )
+        .unwrap();
+
         // Add healthcheck
         writeln!(output, "    healthcheck:").unwrap();
-        writeln!(output, "      test: [\"CMD\", \"{}\"]", self.get_proxy_healthcheck_cmd(&proxy.proxy_type)).unwrap();
+        writeln!(
+            output,
+            "      test: [\"CMD\", \"{}\"]",
+            self.get_proxy_healthcheck_cmd(&proxy.proxy_type)
+        )
+        .unwrap();
         writeln!(output, "      interval: 30s").unwrap();
         writeln!(output, "      timeout: 10s").unwrap();
         writeln!(output, "      retries: 3").unwrap();
         writeln!(output, "      start_period: 40s").unwrap();
-        
+
         Ok(())
     }
 
     /// Generate scaled proxy instance
-    fn generate_scaled_proxy_instance(&self, output: &mut String, proxy: &ProxyConfig, _index: usize, instance: u8) -> Result<()> {
+    fn generate_scaled_proxy_instance(
+        &self,
+        output: &mut String,
+        proxy: &ProxyConfig,
+        _index: usize,
+        instance: u8,
+    ) -> Result<()> {
         writeln!(output).unwrap();
         writeln!(output, "  # Scaled instance {} of {}", instance, proxy.name).unwrap();
         writeln!(output, "  {}-{}:", proxy.name, instance).unwrap();
-        writeln!(output, "    image: {}", self.get_proxy_image(&proxy.proxy_type)).unwrap();
+        writeln!(
+            output,
+            "    image: {}",
+            self.get_proxy_image(&proxy.proxy_type)
+        )
+        .unwrap();
         writeln!(output, "    container_name: {}-{}", proxy.name, instance).unwrap();
         writeln!(output, "    restart: unless-stopped").unwrap();
         writeln!(output, "    ports:").unwrap();
-        writeln!(output, "      - \"{}:{}\"", proxy.external_port + instance as u16 - 1, proxy.internal_port).unwrap();
+        writeln!(
+            output,
+            "      - \"{}:{}\"",
+            proxy.external_port + instance as u16 - 1,
+            proxy.internal_port
+        )
+        .unwrap();
         writeln!(output, "    volumes:").unwrap();
-        writeln!(output, "      - ./proxy-configs/{}:{}:ro", proxy.name, self.get_proxy_config_dir(&proxy.proxy_type)).unwrap();
+        writeln!(
+            output,
+            "      - ./proxy-configs/{}:{}:ro",
+            proxy.name,
+            self.get_proxy_config_dir(&proxy.proxy_type)
+        )
+        .unwrap();
         writeln!(output, "      - ./built/logs:/var/log/nginx:rw").unwrap();
         writeln!(output, "    networks:").unwrap();
         writeln!(output, "      - front-net").unwrap();
@@ -130,20 +212,40 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "    environment:").unwrap();
         writeln!(output, "      - PROXY_LAYER={}", proxy.layer.unwrap_or(0)).unwrap();
         writeln!(output, "      - INSTANCE_ID={}", instance).unwrap();
-        writeln!(output, "      - MAX_CONNECTIONS={}", proxy.max_connections.unwrap_or(1024)).unwrap();
+        writeln!(
+            output,
+            "      - MAX_CONNECTIONS={}",
+            proxy.max_connections.unwrap_or(1024)
+        )
+        .unwrap();
         writeln!(output, "    labels:").unwrap();
         writeln!(output, "      - \"cerberus.service=proxy\"").unwrap();
-        writeln!(output, "      - \"cerberus.layer={}\"", proxy.layer.unwrap_or(0)).unwrap();
-        writeln!(output, "      - \"cerberus.type={}\"", proxy.proxy_type.to_string()).unwrap();
+        writeln!(
+            output,
+            "      - \"cerberus.layer={}\"",
+            proxy.layer.unwrap_or(0)
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "      - \"cerberus.type={}\"",
+            proxy.proxy_type.to_string()
+        )
+        .unwrap();
         writeln!(output, "      - \"cerberus.instance={}\"", instance).unwrap();
-        
+
         Ok(())
     }
 
     /// Generate proxy dependencies section
-    fn generate_proxy_dependencies(&self, output: &mut String, proxy: &ProxyConfig, index: usize) -> Result<()> {
+    fn generate_proxy_dependencies(
+        &self,
+        output: &mut String,
+        proxy: &ProxyConfig,
+        index: usize,
+    ) -> Result<()> {
         let mut dependencies = Vec::new();
-        
+
         // First proxy depends on Anubis if enabled
         if index == 0 && self.config.anubis.enabled {
             if let Some(upstream) = &proxy.default_upstream {
@@ -152,7 +254,7 @@ impl<'a> DockerComposeGenerator<'a> {
                 }
             }
         }
-        
+
         // Generate depends_on section only if there are dependencies
         if !dependencies.is_empty() {
             writeln!(output, "    depends_on:").unwrap();
@@ -160,7 +262,7 @@ impl<'a> DockerComposeGenerator<'a> {
                 writeln!(output, "      - {}", dep).unwrap();
             }
         }
-        
+
         Ok(())
     }
 
@@ -176,38 +278,60 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "      - \"8080:8080\"").unwrap();
         writeln!(output, "      - \"9090:9090\"").unwrap();
         writeln!(output, "    volumes:").unwrap();
-        writeln!(output, "      - ./anubis/botPolicy.json:/app/botPolicy.json:ro").unwrap();
+        writeln!(
+            output,
+            "      - ./anubis/botPolicy.json:/app/botPolicy.json:ro"
+        )
+        .unwrap();
         writeln!(output, "      - ./built/logs:/var/log/anubis:rw").unwrap();
         writeln!(output, "    networks:").unwrap();
         writeln!(output, "      - front-net").unwrap();
         writeln!(output, "      - back-net").unwrap();
         writeln!(output, "    environment:").unwrap();
         writeln!(output, "      - BIND={}", self.config.anubis.bind).unwrap();
-        writeln!(output, "      - DIFFICULTY={}", self.config.anubis.difficulty).unwrap();
+        writeln!(
+            output,
+            "      - DIFFICULTY={}",
+            self.config.anubis.difficulty
+        )
+        .unwrap();
         writeln!(output, "      - TARGET={}", self.config.anubis.target).unwrap();
-        writeln!(output, "      - METRICS_BIND={}", self.config.anubis.metrics_bind).unwrap();
+        writeln!(
+            output,
+            "      - METRICS_BIND={}",
+            self.config.anubis.metrics_bind
+        )
+        .unwrap();
         writeln!(output, "      - SERVE_ROBOTS_TXT=\"true\"").unwrap();
         writeln!(output, "    labels:").unwrap();
         writeln!(output, "      - \"cerberus.service=ddos-protection\"").unwrap();
         writeln!(output, "      - \"cerberus.layer=anubis\"").unwrap();
         writeln!(output, "    healthcheck:").unwrap();
-        writeln!(output, "      test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:9090/metrics\"]").unwrap();
+        writeln!(
+            output,
+            "      test: [\"CMD\", \"curl\", \"-f\", \"http://localhost:9090/metrics\"]"
+        )
+        .unwrap();
         writeln!(output, "      interval: 30s").unwrap();
         writeln!(output, "      timeout: 10s").unwrap();
         writeln!(output, "      retries: 3").unwrap();
         writeln!(output, "      start_period: 40s").unwrap();
-        
+
         // Anubis depends on proxy-layer2 if it exists
         if self.config.proxies.len() > 1 {
             writeln!(output, "    depends_on:").unwrap();
             writeln!(output, "      - proxy-layer2").unwrap();
         }
-        
+
         Ok(())
     }
 
     /// Generate backend service definition
-    fn generate_backend_service(&self, output: &mut String, service: &crate::config::ServiceConfig) -> Result<()> {
+    fn generate_backend_service(
+        &self,
+        output: &mut String,
+        service: &crate::config::ServiceConfig,
+    ) -> Result<()> {
         writeln!(output).unwrap();
         writeln!(output, "  # Backend Service: {}", service.name).unwrap();
         writeln!(output, "  {}:", service.name).unwrap();
@@ -228,12 +352,17 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "      - \"cerberus.name={}\"", service.name).unwrap();
         writeln!(output, "      - \"cerberus.domain={}\"", service.domain).unwrap();
         writeln!(output, "    healthcheck:").unwrap();
-        writeln!(output, "      test: [\"CMD\", \"curl\", \"-f\", \"{}/health\"]", service.upstream).unwrap();
+        writeln!(
+            output,
+            "      test: [\"CMD\", \"curl\", \"-f\", \"{}/health\"]",
+            service.upstream
+        )
+        .unwrap();
         writeln!(output, "      interval: 30s").unwrap();
         writeln!(output, "      timeout: 10s").unwrap();
         writeln!(output, "      retries: 3").unwrap();
         writeln!(output, "      start_period: 60s").unwrap();
-        
+
         Ok(())
     }
 
@@ -254,7 +383,7 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "    ipam:").unwrap();
         writeln!(output, "      config:").unwrap();
         writeln!(output, "        - subnet: 172.21.0.0/16").unwrap();
-        
+
         Ok(())
     }
 
@@ -275,7 +404,7 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "  nginx_logs:").unwrap();
         writeln!(output, "    driver: local").unwrap();
         writeln!(output, "    name: cerberus-logs").unwrap();
-        
+
         Ok(())
     }
 
@@ -305,20 +434,24 @@ impl<'a> DockerComposeGenerator<'a> {
             ProxyType::Caddy => "curl -f http://localhost:2019/health || exit 1",
             ProxyType::Nginx => "nginx -t || exit 1",
             ProxyType::HaProxy => "haproxy -c -f /usr/local/etc/haproxy/haproxy.cfg || exit 1",
-            ProxyType::Traefik => "wget --no-verbose --tries=1 --spider http://localhost:8080/ping || exit 1",
+            ProxyType::Traefik => {
+                "wget --no-verbose --tries=1 --spider http://localhost:8080/ping || exit 1"
+            }
         }
     }
 
     /// Check if upstream is an external IP/hostname
     fn is_external_upstream(&self, upstream: &str) -> bool {
         // Simple check: if it contains IP pattern or external domains
-        upstream.contains("192.") || 
-        upstream.contains("10.") ||
-        upstream.contains("172.") ||
-        upstream.contains(".com") ||
-        upstream.contains(".net") ||
-        upstream.contains(".org") ||
-        upstream.contains("://") && !upstream.contains("://internal-") && !upstream.contains("http://internal-service")
+        upstream.contains("192.")
+            || upstream.contains("10.")
+            || upstream.contains("172.")
+            || upstream.contains(".com")
+            || upstream.contains(".net")
+            || upstream.contains(".org")
+            || upstream.contains("://")
+                && !upstream.contains("://internal-")
+                && !upstream.contains("http://internal-service")
     }
 
     /// Validate a Docker Compose file
@@ -330,14 +463,14 @@ impl<'a> DockerComposeGenerator<'a> {
             .arg("config")
             .output()
             .map_err(|e| CerberusError::io(path, e))?;
-            
+
         if !output.status.success() {
             let error_msg = String::from_utf8_lossy(&output.stderr);
             return Err(CerberusError::DockerComposeValidation {
                 message: error_msg.to_string(),
             });
         }
-        
+
         Ok(())
     }
 }
