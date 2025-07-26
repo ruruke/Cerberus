@@ -130,7 +130,17 @@ jobs:
       - name: Setup dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq bc netcat-openbsd
+          sudo apt-get install -y jq bc netcat-openbsd curl
+          
+          # Install docker-compose if not available
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            echo "Installing docker-compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
+          
+          echo "Docker Compose version:"
+          docker-compose --version || docker compose version || echo "No Docker Compose found"
 
       - name: Setup Docker
         uses: docker/setup-buildx-action@v3
@@ -193,7 +203,11 @@ jobs:
           for test in tests/test-simple-config.sh; do
             if [[ -f "$test" ]]; then
               echo "Running $test..."
-              timeout 120 "$test" || echo "Test $test failed or timed out"
+              chmod +x "$test"
+              timeout 120 bash "$test" || echo "Test $test failed or timed out"
+            else
+              echo "Test file not found: $test"
+              ls -la tests/
             fi
           done
 
@@ -203,7 +217,8 @@ jobs:
         run: |
           if [[ -f "tests/test-docker-compose-generator.sh" ]]; then
             echo "Running Docker Compose generator test..."
-            timeout 90 ./tests/test-docker-compose-generator.sh || {
+            chmod +x tests/test-docker-compose-generator.sh
+            timeout 90 bash tests/test-docker-compose-generator.sh || {
               echo "❌ Docker Compose generator test failed"
               exit 1
             }
@@ -218,7 +233,8 @@ jobs:
         timeout-minutes: ${{ matrix.timeout }}
         run: |
           if [[ -f "tests/test-proxy-config-generator.sh" ]]; then
-            timeout 90 ./tests/test-proxy-config-generator.sh
+            chmod +x tests/test-proxy-config-generator.sh
+            timeout 90 bash tests/test-proxy-config-generator.sh
           else
             echo "Proxy config generator test not found, skipping"
           fi
@@ -228,7 +244,8 @@ jobs:
         timeout-minutes: ${{ matrix.timeout }}
         run: |
           if [[ -f "tests/test-dockerfile-generator.sh" ]]; then
-            timeout 90 ./tests/test-dockerfile-generator.sh
+            chmod +x tests/test-dockerfile-generator.sh
+            timeout 90 bash tests/test-dockerfile-generator.sh
           else
             echo "Dockerfile generator test not found, skipping"
           fi
@@ -238,7 +255,8 @@ jobs:
         timeout-minutes: ${{ matrix.timeout }}
         run: |
           if [[ -f "tests/test-anubis-generator.sh" ]]; then
-            timeout 90 ./tests/test-anubis-generator.sh
+            chmod +x tests/test-anubis-generator.sh
+            timeout 90 bash tests/test-anubis-generator.sh
           else
             echo "Anubis generator test not found, skipping"
           fi
@@ -248,10 +266,12 @@ jobs:
         timeout-minutes: ${{ matrix.timeout }}
         run: |
           if [[ -f "tests/test-integration-simple.sh" ]]; then
-            timeout 180 ./tests/test-integration-simple.sh || echo "Integration test failed or timed out"
+            chmod +x tests/test-integration-simple.sh
+            timeout 180 bash tests/test-integration-simple.sh || echo "Integration test failed or timed out"
           else
             echo "Simple integration test not found, running minimal test"
-            ./tests/test-minimal.sh
+            chmod +x tests/test-minimal.sh
+            bash tests/test-minimal.sh
           fi
 
       - name: Run minimal tests
@@ -260,7 +280,8 @@ jobs:
         run: |
           if [[ -f "tests/test-minimal.sh" ]]; then
             echo "Running minimal test..."
-            ./tests/test-minimal.sh || {
+            chmod +x tests/test-minimal.sh
+            bash tests/test-minimal.sh || {
               echo "❌ Minimal test failed"
               exit 1
             }
@@ -305,7 +326,14 @@ jobs:
       - name: Setup dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq bc
+          sudo apt-get install -y jq bc curl
+          
+          # Install docker-compose if not available  
+          if ! command -v docker-compose >/dev/null 2>&1; then
+            echo "Installing docker-compose..."
+            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+            sudo chmod +x /usr/local/bin/docker-compose
+          fi
 
       - name: Make test scripts executable
         run: |
@@ -325,7 +353,7 @@ jobs:
             echo "=== Stability Test Run $i ==="
             rm -rf tests/tmp/* built/* || true
             
-            if timeout 30 ./tests/test-minimal.sh >/dev/null 2>&1; then
+            if timeout 30 bash tests/test-minimal.sh >/dev/null 2>&1; then
               echo "✅ Run $i: PASSED"
               ((success_count++))
             else
