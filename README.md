@@ -31,13 +31,21 @@ Internet → HAProxy/Proxy → Anubis (DDoS) → Proxy-2 → Backend Services
 - Bash 4.0+
 - (オプション) jq - JSON検証用
 
-### 1. 設定ファイル作成
+### 1. 初期化と設定
 
 ```bash
-# サンプル設定をコピー
-cp config-example.toml config.toml
+# リポジトリをクローン
+git clone https://github.com/ruruke/Cerberus.git
+cd Cerberus
 
-# 設定を編集
+# 実行権限を設定（必要に応じて）
+./setup-permissions.sh
+
+# テンプレートから初期化（推奨）
+./cerberus.sh init --template basic --interactive
+
+# または、サンプル設定をコピー
+cp config-example.toml config.toml
 vim config.toml
 ```
 
@@ -45,11 +53,20 @@ vim config.toml
 
 ```bash
 # すべてのコンポーネントを生成してデプロイ
-./cerberus.sh generate && ./cerberus.sh up
+./cerberus.sh generate && ./cerberus.sh up --detach
 
 # 状態確認
-./cerberus.sh status
+./cerberus.sh status --detailed
 ```
+
+### 3. 自動ディレクトリ作成
+
+Cerberusは初回実行時に必要なディレクトリを自動作成します：
+- `built/` - 生成されたファイル
+- `built/dockerfiles/` - カスタムDockerfile
+- `built/anubis/` - DDoS保護設定
+- `built/configs/` - プロキシ設定
+- `tests/tmp/` - テスト一時ファイル
 
 ## 📋 Cerberus CLI コマンド
 
@@ -68,32 +85,40 @@ vim config.toml
 | `restart` | サービス再起動 |
 | `logs` | ログ表示 |
 | `ps` | サービス状態確認 |
-| `scale` | サービスのスケーリング |
+| `scale` | サービスのスケーリング（手動・自動） |
 | `clean` | 生成ファイル削除 |
 | `init` | 新規プロジェクト初期化 |
 | `template` | テンプレート管理 |
 | `status` | システム全体の状態確認 |
+| `test` | テストスイート実行 |
 
 ### 使用例
 
 ```bash
-# 新規プロジェクト初期化
-./cerberus.sh init --name myproject --template basic
+# 新規プロジェクト初期化（テンプレート使用）
+./cerberus.sh init --template misskey --interactive
 
-# 設定検証
-./cerberus.sh validate --config config.toml
+# 設定検証（厳密モード）
+./cerberus.sh validate --strict
 
-# 特定出力ディレクトリに生成
-./cerberus.sh generate --config config.toml --output ./production
+# ファイル生成（強制上書き）
+./cerberus.sh generate --force --validate
 
-# スケーリング
+# 手動スケーリング
 ./cerberus.sh scale nginx-proxy=3 haproxy-lb=2
 
-# ログ監視
-./cerberus.sh logs --follow --service anubis
+# 自動スケーリング有効化
+./cerberus.sh scale auto --enable
+
+# ログ監視（フォロー・タイムスタンプ付き）
+./cerberus.sh logs --follow --tail 100
+
+# テストスイート実行
+./cerberus.sh test --integration
+./cerberus.sh test --stability --stability-runs 10
 
 # クリーンアップ
-./cerberus.sh clean --built-only
+./cerberus.sh clean --all --confirm
 ```
 
 ## ⚙️ 設定ファイル (config.toml)

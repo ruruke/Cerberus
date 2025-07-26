@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Setup paths
-SCRIPT_DIR="/mnt/e/codeing/shellscript/cerberus"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp"
 
@@ -15,6 +15,12 @@ echo "===================================="
 # Load libraries
 source "${SCRIPT_DIR}/lib/core/utils.sh"
 source "${SCRIPT_DIR}/lib/core/config-simple.sh"
+if [[ -f "${SCRIPT_DIR}/lib/generators/anubis-simple.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/anubis-simple.sh"
+else
+    echo "⚠ WARNING: Anubis generator not available, creating stub functions"
+    generate_anubis_config() { echo "Anubis config generation stubbed"; }
+fi
 
 # Test configuration
 cat > "${SCRIPT_DIR}/tests/tmp/anubis-test.toml" << 'EOF'

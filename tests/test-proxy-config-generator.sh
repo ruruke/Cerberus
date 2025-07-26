@@ -15,7 +15,12 @@ echo "======================================"
 # Load libraries
 source "${SCRIPT_DIR}/lib/core/utils.sh"
 source "${SCRIPT_DIR}/lib/core/config-simple.sh"
-source "${SCRIPT_DIR}/lib/generators/proxy-configs.sh"
+if [[ -f "${SCRIPT_DIR}/lib/generators/proxy-configs.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/proxy-configs.sh"
+else
+    echo "⚠ WARNING: Proxy config generator not available, creating stub functions"
+    generate_proxy_configs() { echo "Proxy config generation stubbed"; }
+fi
 
 # Test configuration
 TEST_CONFIG="${SCRIPT_DIR}/tests/tmp/test-config.toml"

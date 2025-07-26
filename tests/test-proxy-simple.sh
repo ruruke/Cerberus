@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Setup paths
-SCRIPT_DIR="/mnt/e/codeing/shellscript/cerberus"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp"
 

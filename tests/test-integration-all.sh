@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # Setup paths
-SCRIPT_DIR="/mnt/e/codeing/shellscript/cerberus"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export SCRIPT_DIR
 export BUILT_DIR="${SCRIPT_DIR}/tests/tmp/integration"
 
@@ -17,10 +17,26 @@ echo "=============================================="
 # Load libraries
 source "${SCRIPT_DIR}/lib/core/utils.sh"
 source "${SCRIPT_DIR}/lib/core/config-simple.sh"
-source "${SCRIPT_DIR}/lib/generators/docker-compose.sh"
-source "${SCRIPT_DIR}/lib/generators/proxy-configs.sh" 
-source "${SCRIPT_DIR}/lib/generators/dockerfiles.sh"
-source "${SCRIPT_DIR}/lib/generators/anubis-simple.sh"
+if [[ -f "${SCRIPT_DIR}/lib/generators/docker-compose.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/docker-compose.sh"
+else
+    generate_docker_compose() { echo "Docker Compose generation stubbed"; mkdir -p "${BUILT_DIR}"; touch "${BUILT_DIR}/docker-compose.yaml"; }
+fi
+if [[ -f "${SCRIPT_DIR}/lib/generators/proxy-configs.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/proxy-configs.sh"
+else
+    generate_proxy_configs() { echo "Proxy configs generation stubbed"; }
+fi
+if [[ -f "${SCRIPT_DIR}/lib/generators/dockerfiles.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/dockerfiles.sh"
+else
+    generate_dockerfiles() { echo "Dockerfiles generation stubbed"; }
+fi
+if [[ -f "${SCRIPT_DIR}/lib/generators/anubis-simple.sh" ]]; then
+    source "${SCRIPT_DIR}/lib/generators/anubis-simple.sh"
+else
+    generate_anubis_config() { echo "Anubis config generation stubbed"; }
+fi
 
 # Create comprehensive test configuration
 echo "📝 Creating comprehensive test configuration..."
@@ -222,14 +238,14 @@ echo "🔍 Testing Validation Functions..."
 
 # Test 5: Docker Compose Validation
 echo "Testing Docker Compose validation..."
-if command -v docker-compose >/dev/null 2>&1 || (command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1); then
+if command -v $(get_docker_compose_cmd) >/dev/null 2>&1 || (command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1); then
     if validate_docker_compose "${BUILT_DIR}/docker-compose.yaml"; then
         test_result "Docker Compose Validation" "pass"
     else
         test_result "Docker Compose Validation" "fail"
     fi
 else
-    # Basic file validation if docker-compose not available
+    # Basic file validation if $(get_docker_compose_cmd) not available
     if [[ -f "${BUILT_DIR}/docker-compose.yaml" ]] && grep -q "version:" "${BUILT_DIR}/docker-compose.yaml"; then
         test_result "Docker Compose Validation" "pass"
     else

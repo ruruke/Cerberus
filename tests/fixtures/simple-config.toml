@@ -1,0 +1,18 @@
+# Simple test configuration for basic tests
+
+[project]
+name = "simple-test"
+version = "1.0.0"
+scaling = false
+
+[[proxies]]
+name = "test-proxy"
+type = "nginx"
+external_port = 80
+internal_port = 80
+instances = 1
+
+[[services]]
+name = "test-service"
+domain = "test.local"
+upstream = "http://localhost:3000"

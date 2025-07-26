@@ -15,7 +15,12 @@ source "${SCRIPT_DIR}/lib/core/config-simple.sh"
 
 # Create test directory and config
 mkdir -p "${SCRIPT_DIR}/tests/tmp"
-cat > "${SCRIPT_DIR}/tests/tmp/test-config.toml" << 'EOF'
+
+# Use test fixture if available, otherwise create inline
+if [[ -f "${SCRIPT_DIR}/tests/fixtures/test-config.toml" ]]; then
+    cp "${SCRIPT_DIR}/tests/fixtures/test-config.toml" "${SCRIPT_DIR}/tests/tmp/test-config.toml"
+else
+    cat > "${SCRIPT_DIR}/tests/tmp/test-config.toml" << 'EOF'
 [project]
 name = "test-project"
 version = "1.0.0"
@@ -43,6 +48,7 @@ name = "web"
 domain = "test.local"
 upstream = "http://127.0.0.1:3000"
 EOF
+fi
 
 # Test 2: Load configuration
 echo "2. Loading test configuration..."
