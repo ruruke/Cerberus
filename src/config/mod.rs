@@ -186,6 +186,24 @@ pub enum ProxyType {
     Traefik,
 }
 
+impl ProxyType {
+    /// Convert to string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ProxyType::Caddy => "caddy",
+            ProxyType::Nginx => "nginx", 
+            ProxyType::HaProxy => "haproxy",
+            ProxyType::Traefik => "traefik",
+        }
+    }
+}
+
+impl std::fmt::Display for ProxyType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// Route type for conditional routing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
