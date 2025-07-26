@@ -436,6 +436,14 @@ init_utils() {
     
     # Ensure required directories exist
     safe_mkdir "$BUILT_DIR"
+    safe_mkdir "${BUILT_DIR}/dockerfiles"
+    safe_mkdir "${BUILT_DIR}/anubis" 
+    safe_mkdir "${BUILT_DIR}/configs"
+    
+    # Create test directories if they don't exist
+    if [[ -n "${SCRIPT_DIR:-}" ]]; then
+        safe_mkdir "${SCRIPT_DIR}/tests/tmp"
+    fi
     
     # Check basic requirements
     require_command "bash"
