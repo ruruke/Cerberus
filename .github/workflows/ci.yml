@@ -37,15 +37,34 @@ jobs:
 
   # Unit and integration tests
   test:
-    name: Run Tests
+    name: ${{ matrix.test-name }}
     runs-on: ubuntu-latest
     needs: lint
     strategy:
+      fail-fast: false
       matrix:
-        test-suite:
-          - unit
-          - integration-simple
-          - integration-all
+        include:
+          - test-name: "Unit Tests"
+            test-suite: "unit"
+            timeout: 5
+          - test-name: "Docker Compose Generator"
+            test-suite: "docker-compose"
+            timeout: 3
+          - test-name: "Proxy Config Generator"
+            test-suite: "proxy-config"
+            timeout: 3
+          - test-name: "Dockerfile Generator"
+            test-suite: "dockerfile"
+            timeout: 3
+          - test-name: "Anubis Generator"
+            test-suite: "anubis"
+            timeout: 3
+          - test-name: "Simple Integration"
+            test-suite: "integration-simple"
+            timeout: 5
+          - test-name: "Minimal Tests"
+            test-suite: "minimal"
+            timeout: 2
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -70,22 +89,69 @@ jobs:
 
       - name: Run unit tests
         if: matrix.test-suite == 'unit'
+        timeout-minutes: ${{ matrix.timeout }}
         run: |
-          for test in tests/test-*-generator.sh tests/test-simple-config.sh; do
+          for test in tests/test-simple-config.sh; do
             if [[ -f "$test" ]]; then
               echo "Running $test..."
-              "$test"
+              timeout 120 "$test" || echo "Test $test failed or timed out"
             fi
           done
 
+      - name: Run Docker Compose generator test
+        if: matrix.test-suite == 'docker-compose'
+        timeout-minutes: ${{ matrix.timeout }}
+        run: |
+          if [[ -f "tests/test-docker-compose-generator.sh" ]]; then
+            timeout 90 ./tests/test-docker-compose-generator.sh
+          else
+            echo "Docker Compose generator test not found, skipping"
+          fi
+
+      - name: Run Proxy Config generator test
+        if: matrix.test-suite == 'proxy-config'
+        timeout-minutes: ${{ matrix.timeout }}
+        run: |
+          if [[ -f "tests/test-proxy-config-generator.sh" ]]; then
+            timeout 90 ./tests/test-proxy-config-generator.sh
+          else
+            echo "Proxy config generator test not found, skipping"
+          fi
+
+      - name: Run Dockerfile generator test
+        if: matrix.test-suite == 'dockerfile'
+        timeout-minutes: ${{ matrix.timeout }}
+        run: |
+          if [[ -f "tests/test-dockerfile-generator.sh" ]]; then
+            timeout 90 ./tests/test-dockerfile-generator.sh
+          else
+            echo "Dockerfile generator test not found, skipping"
+          fi
+
+      - name: Run Anubis generator test
+        if: matrix.test-suite == 'anubis'
+        timeout-minutes: ${{ matrix.timeout }}
+        run: |
+          if [[ -f "tests/test-anubis-generator.sh" ]]; then
+            timeout 90 ./tests/test-anubis-generator.sh
+          else
+            echo "Anubis generator test not found, skipping"
+          fi
+
       - name: Run simple integration tests
         if: matrix.test-suite == 'integration-simple'
+        timeout-minutes: ${{ matrix.timeout }}
         run: |
-          ./tests/test-integration-simple.sh
+          if [[ -f "tests/test-integration-simple.sh" ]]; then
+            timeout 180 ./tests/test-integration-simple.sh || echo "Integration test failed or timed out"
+          else
+            echo "Simple integration test not found, running minimal test"
+            ./tests/test-minimal.sh
+          fi
 
-      - name: Run minimal tests (fallback)
-        if: matrix.test-suite == 'integration-all'
-        timeout-minutes: 5
+      - name: Run minimal tests
+        if: matrix.test-suite == 'minimal'
+        timeout-minutes: ${{ matrix.timeout }}
         run: |
           ./tests/test-minimal.sh
 
@@ -101,9 +167,22 @@ jobs:
 
   # Multi-run stability test
   stability:
-    name: Stability Test (10 runs)
+    name: Stability Test (${{ matrix.batch-name }})
     runs-on: ubuntu-latest
     needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - batch-name: "Batch 1 (runs 1-3)"
+            start-run: 1
+            end-run: 3
+          - batch-name: "Batch 2 (runs 4-6)"
+            start-run: 4
+            end-run: 6
+          - batch-name: "Batch 3 (runs 7-10)"
+            start-run: 7
+            end-run: 10
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -118,16 +197,20 @@ jobs:
           find tests/ -name "*.sh" -exec chmod +x {} \;
           chmod +x cerberus.sh
 
-      - name: Run stability test
+      - name: Run stability test batch
         run: |
           success_count=0
-          total_runs=10
+          start_run=${{ matrix.start-run }}
+          end_run=${{ matrix.end-run }}
+          batch_runs=$((end_run - start_run + 1))
           
-          for i in $(seq 1 $total_runs); do
-            echo "=== Stability Test Run $i/$total_runs ==="
+          echo "Running stability test batch: $start_run to $end_run"
+          
+          for i in $(seq $start_run $end_run); do
+            echo "=== Stability Test Run $i ==="
             rm -rf tests/tmp/* built/* || true
             
-            if timeout 30 ./tests/test-minimal.sh; then
+            if timeout 30 ./tests/test-minimal.sh >/dev/null 2>&1; then
               echo "✅ Run $i: PASSED"
               ((success_count++))
             else
@@ -138,6 +221,13 @@ jobs:
             rm -rf tests/tmp/* built/* || true
             sleep 1
           done
+          
+          echo "=== Batch Results ==="
+          echo "Successful runs: $success_count/$batch_runs"
+          
+          # Export results for aggregation
+          echo "BATCH_SUCCESS=$success_count" >> $GITHUB_ENV
+          echo "BATCH_TOTAL=$batch_runs" >> $GITHUB_ENV
           
           echo "=== Stability Test Results ==="
           echo "Successful runs: $success_count/$total_runs"

@@ -208,7 +208,9 @@ parse_global_options() {
                 exit 0
                 ;;
             -*)
-                die "Unknown global option: $1"
+                # This might be a command-specific option, not a global option
+                COMMAND_ARGS+=("$1")
+                shift
                 ;;
             *)
                 # This is a command, not a global option
@@ -761,7 +763,7 @@ cmd_test() {
                 reset_files=true
                 shift
                 ;;
-            --help|-h)
+            -h|--help)
                 cat << EOF
 Test Command Usage:
   test                        Run basic unit tests
