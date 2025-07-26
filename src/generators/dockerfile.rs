@@ -234,7 +234,7 @@ impl<'a> DockerfileGenerator<'a> {
                 "traefik" => "traefik:v3.0",
                 _ => "alpine:latest",
             };
-            dockerfile.push_str(&format!("FROM {}\n", base_image));
+            dockerfile.push_str(&format!("FROM {base_image}\n"));
             dockerfile.push_str(&format!("COPY --from={} / /\n", first_proxy.name));
         } else {
             dockerfile.push_str("FROM alpine:latest\n");

@@ -146,11 +146,11 @@ impl<'a> DockerComposeGenerator<'a> {
             "nginx" => "/var/log/nginx",
             _ => "/var/log/proxy",
         };
-        writeln!(output, "      - ./built/logs:{}:rw", log_path).unwrap();
+        writeln!(output, "      - ./built/logs:{log_path}:rw").unwrap();
         writeln!(output, "    networks:").unwrap();
         // Add networks dynamically
         for network_name in &proxy.networks {
-            writeln!(output, "      - {}", network_name).unwrap();
+            writeln!(output, "      - {network_name}").unwrap();
         }
         // Fallback to default networks if none specified
         if proxy.networks.is_empty() {
@@ -254,11 +254,11 @@ impl<'a> DockerComposeGenerator<'a> {
             "nginx" => "/var/log/nginx",
             _ => "/var/log/proxy",
         };
-        writeln!(output, "      - ./built/logs:{}:rw", log_path).unwrap();
+        writeln!(output, "      - ./built/logs:{log_path}:rw").unwrap();
         writeln!(output, "    networks:").unwrap();
         // Add networks dynamically
         for network_name in &proxy.networks {
-            writeln!(output, "      - {}", network_name).unwrap();
+            writeln!(output, "      - {network_name}").unwrap();
         }
         // Fallback to default networks if none specified
         if proxy.networks.is_empty() {
@@ -341,7 +341,7 @@ impl<'a> DockerComposeGenerator<'a> {
         writeln!(output, "    networks:").unwrap();
         // Add Anubis networks dynamically
         for network_name in &self.config.anubis.networks {
-            writeln!(output, "      - {}", network_name).unwrap();
+            writeln!(output, "      - {network_name}").unwrap();
         }
         // Fallback to default networks if none specified
         if self.config.anubis.networks.is_empty() {
