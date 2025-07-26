@@ -8,6 +8,39 @@ use crate::config::*;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
+/// Helper function to create a default ProxyConfig
+fn create_test_proxy(name: &str, proxy_type: ProxyType, external_port: u16) -> ProxyConfig {
+    ProxyConfig {
+        name: name.to_string(),
+        proxy_type,
+        external_port,
+        internal_port: 80,
+        layer: Some(1),
+        instances: 1,
+        algorithm: None,
+        max_connections: None,
+        default_upstream: None,
+        routes: vec![],
+        build_context: None,
+        build_dockerfile: None,
+        entrypoint: None,
+        volumes: vec![],
+        networks: vec![],
+        restart: None,
+        secrets: vec![],
+        configs: vec![],
+        depends_on: None,
+        healthcheck: None,
+        logging: None,
+        deploy: None,
+        environment: std::collections::HashMap::new(),
+        env_file: vec![],
+        expose: vec![],
+        external_links: vec![],
+        labels: std::collections::HashMap::new(),
+    }
+}
+
 /// Helper function to create a minimal test configuration
 fn create_minimal_config() -> Config {
     Config {
@@ -18,18 +51,7 @@ fn create_minimal_config() -> Config {
         global: GlobalConfig::default(),
         tls: TlsConfig::default(),
         anubis: AnubisConfig::default(),
-        proxies: vec![ProxyConfig {
-            name: "test-proxy".to_string(),
-            proxy_type: ProxyType::Caddy,
-            external_port: 80,
-            internal_port: 80,
-            layer: Some(1),
-            instances: 1,
-            algorithm: None,
-            max_connections: None,
-            default_upstream: None,
-            routes: vec![],
-        }],
+        proxies: vec![create_test_proxy("test-proxy", ProxyType::Caddy, 80)],
         services: vec![ServiceConfig {
             name: "test-service".to_string(),
             domain: "test.example.com".to_string(),
@@ -39,6 +61,10 @@ fn create_minimal_config() -> Config {
             max_body_size: "1m".to_string(),
             headers: HashMap::new(),
         }],
+        networks: std::collections::HashMap::new(),
+        volumes: std::collections::HashMap::new(),
+        secrets: std::collections::HashMap::new(),
+        configs: std::collections::HashMap::new(),
         logging: LoggingConfig::default(),
     }
 }
@@ -57,32 +83,13 @@ fn create_anubis_enabled_config() -> Config {
 /// Helper function to create a multi-proxy configuration
 fn create_multi_proxy_config() -> Config {
     let mut config = create_minimal_config();
-    config.proxies = vec![
-        ProxyConfig {
-            name: "proxy-layer1".to_string(),
-            proxy_type: ProxyType::Caddy,
-            external_port: 80,
-            internal_port: 80,
-            layer: Some(1),
-            instances: 1,
-            algorithm: None,
-            max_connections: None,
-            default_upstream: Some("http://anubis:8080".to_string()),
-            routes: vec![],
-        },
-        ProxyConfig {
-            name: "proxy-layer2".to_string(),
-            proxy_type: ProxyType::Caddy,
-            external_port: 80,
-            internal_port: 80,
-            layer: Some(2),
-            instances: 1,
-            algorithm: None,
-            max_connections: None,
-            default_upstream: None,
-            routes: vec![],
-        },
-    ];
+    let mut proxy1 = create_test_proxy("proxy-layer1", ProxyType::Caddy, 80);
+    proxy1.default_upstream = Some("http://anubis:8080".to_string());
+    
+    let mut proxy2 = create_test_proxy("proxy-layer2", ProxyType::Caddy, 80);
+    proxy2.layer = Some(2);
+    
+    config.proxies = vec![proxy1, proxy2];
     config
 }
 

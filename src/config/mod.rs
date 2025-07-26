@@ -35,6 +35,22 @@ pub struct Config {
     #[serde(default)]
     pub services: Vec<ServiceConfig>,
 
+    /// Docker networks configuration
+    #[serde(default)]
+    pub networks: std::collections::HashMap<String, NetworkConfig>,
+
+    /// Docker volumes configuration
+    #[serde(default)]
+    pub volumes: std::collections::HashMap<String, VolumeConfig>,
+
+    /// Docker secrets configuration
+    #[serde(default)]
+    pub secrets: std::collections::HashMap<String, SecretConfig>,
+
+    /// Docker configs configuration
+    #[serde(default)]
+    pub configs: std::collections::HashMap<String, ConfigFileConfig>,
+
     /// Logging configuration
     #[serde(default)]
     pub logging: LoggingConfig,
@@ -123,6 +139,127 @@ pub struct CertificateConfig {
     pub key_file: String,
 }
 
+/// Docker build configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DockerBuildConfig {
+    /// Build context path
+    pub context: String,
+    
+    /// Dockerfile path
+    #[serde(default)]
+    pub dockerfile: Option<String>,
+    
+    /// Build args
+    #[serde(default)]
+    pub args: std::collections::HashMap<String, String>,
+    
+    /// Build target stage
+    #[serde(default)]
+    pub target: Option<String>,
+    
+    /// Additional contexts
+    #[serde(default)]
+    pub additional_contexts: std::collections::HashMap<String, String>,
+}
+
+/// Docker service dependencies
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum DependsOn {
+    /// Simple list of service names
+    Simple(Vec<String>),
+    /// Detailed dependencies with conditions
+    Detailed(std::collections::HashMap<String, DependencyCondition>),
+}
+
+/// Dependency condition
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DependencyCondition {
+    /// Condition type
+    pub condition: String,
+    /// Optional restart flag
+    #[serde(default)]
+    pub restart: Option<bool>,
+}
+
+/// Healthcheck configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct HealthcheckConfig {
+    /// Test command
+    pub test: Vec<String>,
+    
+    /// Check interval
+    #[serde(default = "default_healthcheck_interval")]
+    pub interval: String,
+    
+    /// Timeout
+    #[serde(default = "default_healthcheck_timeout")]
+    pub timeout: String,
+    
+    /// Retries
+    #[serde(default = "default_healthcheck_retries")]
+    pub retries: u32,
+    
+    /// Start period
+    #[serde(default)]
+    pub start_period: Option<String>,
+    
+    /// Start interval
+    #[serde(default)]
+    pub start_interval: Option<String>,
+}
+
+fn default_healthcheck_interval() -> String {
+    "30s".to_string()
+}
+
+fn default_healthcheck_timeout() -> String {
+    "10s".to_string()
+}
+
+fn default_healthcheck_retries() -> u32 {
+    3
+}
+
+/// Logging configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct LoggingDriverConfig {
+    /// Driver type
+    pub driver: String,
+    
+    /// Driver options
+    #[serde(default)]
+    pub options: std::collections::HashMap<String, String>,
+}
+
+/// Resource limits
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ResourcesConfig {
+    /// Resource limits
+    #[serde(default)]
+    pub limits: Option<ResourceLimits>,
+    
+    /// Resource reservations
+    #[serde(default)]
+    pub reservations: Option<ResourceLimits>,
+}
+
+/// Resource limits specification
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct ResourceLimits {
+    /// CPU limit
+    #[serde(default)]
+    pub cpus: Option<String>,
+    
+    /// Memory limit
+    #[serde(default)]
+    pub memory: Option<String>,
+    
+    /// PID limit
+    #[serde(default)]
+    pub pids: Option<u32>,
+}
+
 /// Anubis DDoS protection configuration
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AnubisConfig {
@@ -145,6 +282,30 @@ pub struct AnubisConfig {
     /// Metrics endpoint bind address
     #[serde(default = "default_anubis_metrics_bind")]
     pub metrics_bind: String,
+
+    /// Docker image for Anubis
+    #[serde(default = "default_anubis_image")]
+    pub image: String,
+
+    /// Serve robots.txt flag
+    #[serde(default = "default_serve_robots_txt")]
+    pub serve_robots_txt: String,
+
+    /// Policy filename path
+    #[serde(default = "default_policy_fname")]
+    pub policy_fname: String,
+
+    /// Docker volumes
+    #[serde(default)]
+    pub volumes: Vec<String>,
+
+    /// Docker networks
+    #[serde(default)]
+    pub networks: Vec<String>,
+
+    /// Docker restart policy
+    #[serde(default = "default_anubis_restart")]
+    pub restart: String,
 }
 
 impl Default for AnubisConfig {
@@ -155,6 +316,12 @@ impl Default for AnubisConfig {
             target: default_anubis_target(),
             difficulty: default_anubis_difficulty(),
             metrics_bind: default_anubis_metrics_bind(),
+            image: default_anubis_image(),
+            serve_robots_txt: default_serve_robots_txt(),
+            policy_fname: default_policy_fname(),
+            volumes: Vec::new(),
+            networks: Vec::new(),
+            restart: default_anubis_restart(),
         }
     }
 }
@@ -173,6 +340,361 @@ fn default_anubis_difficulty() -> u8 {
 
 fn default_anubis_metrics_bind() -> String {
     ":9090".to_string()
+}
+
+fn default_anubis_image() -> String {
+    "ghcr.io/techarohq/anubis:latest".to_string()
+}
+
+fn default_serve_robots_txt() -> String {
+    "true".to_string()
+}
+
+fn default_policy_fname() -> String {
+    "/data/cfg/botPolicy.json".to_string()
+}
+
+fn default_anubis_restart() -> String {
+    "always".to_string()
+}
+
+/// Docker network configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct NetworkConfig {
+    /// Network driver
+    #[serde(default = "default_network_driver")]
+    pub driver: String,
+
+    /// Driver options
+    #[serde(default)]
+    pub driver_opts: std::collections::HashMap<String, String>,
+
+    /// IPAM configuration
+    #[serde(default)]
+    pub ipam: Option<IpamConfig>,
+
+    /// External network flag
+    #[serde(default)]
+    pub external: bool,
+
+    /// External network name
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// Enable IPv6
+    #[serde(default)]
+    pub enable_ipv6: bool,
+
+    /// Labels
+    #[serde(default)]
+    pub labels: std::collections::HashMap<String, String>,
+}
+
+fn default_network_driver() -> String {
+    "bridge".to_string()
+}
+
+/// IPAM (IP Address Management) configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct IpamConfig {
+    /// IPAM driver
+    #[serde(default)]
+    pub driver: Option<String>,
+
+    /// Driver options
+    #[serde(default)]
+    pub driver_opts: std::collections::HashMap<String, String>,
+
+    /// Network configuration
+    #[serde(default)]
+    pub config: Vec<IpamNetworkConfig>,
+}
+
+/// IPAM network configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct IpamNetworkConfig {
+    /// Subnet
+    #[serde(default)]
+    pub subnet: Option<String>,
+
+    /// IP range
+    #[serde(default)]
+    pub ip_range: Option<String>,
+
+    /// Gateway
+    #[serde(default)]
+    pub gateway: Option<String>,
+
+    /// Auxiliary addresses
+    #[serde(default)]
+    pub aux_addresses: std::collections::HashMap<String, String>,
+}
+
+/// Docker volume configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct VolumeConfig {
+    /// Volume driver
+    #[serde(default)]
+    pub driver: Option<String>,
+
+    /// Driver options
+    #[serde(default)]
+    pub driver_opts: std::collections::HashMap<String, String>,
+
+    /// External volume flag
+    #[serde(default)]
+    pub external: bool,
+
+    /// External volume name
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// Labels
+    #[serde(default)]
+    pub labels: std::collections::HashMap<String, String>,
+}
+
+/// Docker secret configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum SecretConfig {
+    /// Simple file-based secret
+    File {
+        /// File path
+        file: String,
+    },
+    /// Environment variable secret
+    Environment {
+        /// Environment variable name
+        environment: String,
+    },
+    /// External secret reference
+    External {
+        /// External flag
+        external: bool,
+        /// External secret name
+        #[serde(default)]
+        name: Option<String>,
+    },
+    /// Inline content secret
+    Content {
+        /// Content string
+        content: String,
+    },
+}
+
+/// Docker config file configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum ConfigFileConfig {
+    /// Simple file-based config
+    File {
+        /// File path
+        file: String,
+    },
+    /// Environment variable config
+    Environment {
+        /// Environment variable name
+        environment: String,
+    },
+    /// External config reference
+    External {
+        /// External flag
+        external: bool,
+        /// External config name
+        #[serde(default)]
+        name: Option<String>,
+    },
+    /// Inline content config
+    Content {
+        /// Content string
+        content: String,
+    },
+}
+
+/// Service secret reference
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum ServiceSecretRef {
+    /// Simple secret name
+    Simple(String),
+    /// Detailed secret configuration
+    Detailed {
+        /// Secret name
+        source: String,
+        /// Target path in container
+        #[serde(default)]
+        target: Option<String>,
+        /// File mode (octal)
+        #[serde(default)]
+        mode: Option<u32>,
+        /// User ID
+        #[serde(default)]
+        uid: Option<String>,
+        /// Group ID
+        #[serde(default)]
+        gid: Option<String>,
+    },
+}
+
+/// Service config reference
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(untagged)]
+pub enum ServiceConfigRef {
+    /// Simple config name
+    Simple(String),
+    /// Detailed config configuration
+    Detailed {
+        /// Config name
+        source: String,
+        /// Target path in container
+        #[serde(default)]
+        target: Option<String>,
+        /// File mode (octal)
+        #[serde(default)]
+        mode: Option<u32>,
+        /// User ID
+        #[serde(default)]
+        uid: Option<String>,
+        /// Group ID
+        #[serde(default)]
+        gid: Option<String>,
+    },
+}
+
+/// Docker deploy configuration for Swarm mode
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct DeployConfig {
+    /// Deployment mode
+    #[serde(default)]
+    pub mode: Option<String>,
+
+    /// Number of replicas
+    #[serde(default)]
+    pub replicas: Option<u32>,
+
+    /// Resource constraints
+    #[serde(default)]
+    pub resources: Option<ResourcesConfig>,
+
+    /// Update configuration
+    #[serde(default)]
+    pub update_config: Option<UpdateConfig>,
+
+    /// Rollback configuration
+    #[serde(default)]
+    pub rollback_config: Option<RollbackConfig>,
+
+    /// Restart policy
+    #[serde(default)]
+    pub restart_policy: Option<RestartPolicyConfig>,
+
+    /// Placement constraints
+    #[serde(default)]
+    pub placement: Option<PlacementConfig>,
+
+    /// Labels
+    #[serde(default)]
+    pub labels: std::collections::HashMap<String, String>,
+}
+
+/// Update configuration for deployments
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct UpdateConfig {
+    /// Parallelism level
+    #[serde(default)]
+    pub parallelism: Option<u32>,
+
+    /// Update delay
+    #[serde(default)]
+    pub delay: Option<String>,
+
+    /// Failure action
+    #[serde(default)]
+    pub failure_action: Option<String>,
+
+    /// Monitor duration
+    #[serde(default)]
+    pub monitor: Option<String>,
+
+    /// Max failure ratio
+    #[serde(default)]
+    pub max_failure_ratio: Option<f64>,
+
+    /// Update order
+    #[serde(default)]
+    pub order: Option<String>,
+}
+
+/// Rollback configuration for deployments
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct RollbackConfig {
+    /// Parallelism level
+    #[serde(default)]
+    pub parallelism: Option<u32>,
+
+    /// Rollback delay
+    #[serde(default)]
+    pub delay: Option<String>,
+
+    /// Failure action
+    #[serde(default)]
+    pub failure_action: Option<String>,
+
+    /// Monitor duration
+    #[serde(default)]
+    pub monitor: Option<String>,
+
+    /// Max failure ratio
+    #[serde(default)]
+    pub max_failure_ratio: Option<f64>,
+
+    /// Rollback order
+    #[serde(default)]
+    pub order: Option<String>,
+}
+
+/// Restart policy configuration
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct RestartPolicyConfig {
+    /// Restart condition
+    #[serde(default)]
+    pub condition: Option<String>,
+
+    /// Restart delay
+    #[serde(default)]
+    pub delay: Option<String>,
+
+    /// Max attempts
+    #[serde(default)]
+    pub max_attempts: Option<u32>,
+
+    /// Restart window
+    #[serde(default)]
+    pub window: Option<String>,
+}
+
+/// Placement configuration for services
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct PlacementConfig {
+    /// Placement constraints
+    #[serde(default)]
+    pub constraints: Vec<String>,
+
+    /// Placement preferences
+    #[serde(default)]
+    pub preferences: Vec<PlacementPreference>,
+
+    /// Max replicas per node
+    #[serde(default)]
+    pub max_replicas_per_node: Option<u32>,
+}
+
+/// Placement preference
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlacementPreference {
+    /// Spread configuration
+    pub spread: String,
 }
 
 /// Proxy type enumeration
@@ -272,6 +794,74 @@ pub struct ProxyConfig {
     /// Specific routing configurations
     #[serde(default)]
     pub routes: Vec<RouteConfig>,
+
+    /// Docker build context path
+    #[serde(default)]
+    pub build_context: Option<String>,
+
+    /// Docker build dockerfile path
+    #[serde(default)]
+    pub build_dockerfile: Option<String>,
+
+    /// Docker entrypoint command
+    #[serde(default)]
+    pub entrypoint: Option<String>,
+
+    /// Docker volumes
+    #[serde(default)]
+    pub volumes: Vec<String>,
+
+    /// Docker networks
+    #[serde(default)]
+    pub networks: Vec<String>,
+
+    /// Docker restart policy
+    #[serde(default)]
+    pub restart: Option<String>,
+
+    /// Docker secrets references
+    #[serde(default)]
+    pub secrets: Vec<ServiceSecretRef>,
+
+    /// Docker configs references
+    #[serde(default)]
+    pub configs: Vec<ServiceConfigRef>,
+
+    /// Docker service dependencies
+    #[serde(default)]
+    pub depends_on: Option<DependsOn>,
+
+    /// Docker healthcheck configuration
+    #[serde(default)]
+    pub healthcheck: Option<HealthcheckConfig>,
+
+    /// Docker logging configuration
+    #[serde(default)]
+    pub logging: Option<LoggingDriverConfig>,
+
+    /// Docker resource constraints
+    #[serde(default)]
+    pub deploy: Option<DeployConfig>,
+
+    /// Environment variables
+    #[serde(default)]
+    pub environment: std::collections::HashMap<String, String>,
+
+    /// Environment files
+    #[serde(default)]
+    pub env_file: Vec<String>,
+
+    /// Exposed ports (internal only)
+    #[serde(default)]
+    pub expose: Vec<String>,
+
+    /// External links (deprecated but supported)
+    #[serde(default)]
+    pub external_links: Vec<String>,
+
+    /// Labels
+    #[serde(default)]
+    pub labels: std::collections::HashMap<String, String>,
 }
 
 fn default_internal_port() -> u16 {
