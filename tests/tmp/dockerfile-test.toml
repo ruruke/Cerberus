@@ -1,0 +1,32 @@
+[project]
+name = "test-project"
+
+[[proxies]]
+name = "nginx-proxy"
+type = "nginx"
+external_port = 8080
+internal_port = 80
+
+[[proxies]]
+name = "caddy-proxy"
+type = "caddy"
+external_port = 8081
+internal_port = 80
+
+[[proxies]]
+name = "haproxy-proxy"
+type = "haproxy"
+external_port = 8082
+internal_port = 80
+
+[[proxies]]
+name = "traefik-proxy"
+type = "traefik"
+external_port = 8083
+internal_port = 80
+
+[anubis]
+enabled = true
+bind = ":8080"
+difficulty = 5
+target = "http://proxy-2:80"
