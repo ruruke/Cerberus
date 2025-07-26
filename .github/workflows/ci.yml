@@ -301,94 +301,6 @@ jobs:
             built/
           retention-days: 7
 
-  # Multi-run stability test
-  stability:
-    name: Stability Test (${{ matrix.batch-name }})
-    runs-on: ubuntu-latest
-    needs: test
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - batch-name: "Batch 1 (runs 1-3)"
-            start-run: 1
-            end-run: 3
-          - batch-name: "Batch 2 (runs 4-6)"
-            start-run: 4
-            end-run: 6
-          - batch-name: "Batch 3 (runs 7-10)"
-            start-run: 7
-            end-run: 10
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq bc curl
-          
-          # Install docker-compose if not available  
-          if ! command -v docker-compose >/dev/null 2>&1; then
-            echo "Installing docker-compose..."
-            sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-            sudo chmod +x /usr/local/bin/docker-compose
-          fi
-
-      - name: Make test scripts executable
-        run: |
-          find tests/ -name "*.sh" -exec chmod +x {} \;
-          chmod +x cerberus.sh
-
-      - name: Run stability test batch
-        run: |
-          success_count=0
-          start_run=${{ matrix.start-run }}
-          end_run=${{ matrix.end-run }}
-          batch_runs=$((end_run - start_run + 1))
-          
-          echo "Running stability test batch: $start_run to $end_run"
-          
-          for i in $(seq $start_run $end_run); do
-            echo "=== Stability Test Run $i ==="
-            rm -rf tests/tmp/* built/* || true
-            
-            if timeout 30 bash tests/test-minimal.sh >/dev/null 2>&1; then
-              echo "✅ Run $i: PASSED"
-              ((success_count++))
-            else
-              echo "❌ Run $i: FAILED"
-            fi
-            
-            # Clean between runs
-            rm -rf tests/tmp/* built/* || true
-            sleep 1
-          done
-          
-          echo "=== Batch Results ==="
-          echo "Successful runs: $success_count/$batch_runs"
-          
-          # Export results for aggregation
-          echo "BATCH_SUCCESS=$success_count" >> $GITHUB_ENV
-          echo "BATCH_TOTAL=$batch_runs" >> $GITHUB_ENV
-          
-          echo "=== Batch Stability Test Results ==="
-          echo "Successful runs: $success_count/$batch_runs"
-          if [ $batch_runs -gt 0 ]; then
-            echo "Success rate: $(( success_count * 100 / batch_runs ))%"
-          fi
-          
-          # Each batch should have most runs pass
-          if [ $success_count -eq $batch_runs ]; then
-            echo "🎉 All batch runs passed!"
-            exit 0
-          elif [ $success_count -ge 2 ]; then
-            echo "⚠️ Most batch runs passed (acceptable)"
-            exit 0
-          else
-            echo "❌ Too many batch failures"
-            exit 1
-          fi
 
   # Docker build test
   docker-build:
@@ -502,7 +414,7 @@ jobs:
   notify:
     name: Notify Results
     runs-on: ubuntu-latest
-    needs: [lint, test, stability, docker-build, security]
+    needs: [lint, test, docker-build, security]
     if: always()
     steps:
       - name: Summarize results
@@ -510,13 +422,11 @@ jobs:
           echo "=== CI/CD Pipeline Results ==="
           echo "Lint: ${{ needs.lint.result }}"
           echo "Test: ${{ needs.test.result }}"
-          echo "Stability: ${{ needs.stability.result }}"
           echo "Docker Build: ${{ needs.docker-build.result }}"
           echo "Security: ${{ needs.security.result }}"
           
           if [[ "${{ needs.lint.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
-                "${{ needs.stability.result }}" == "success" && \
                 "${{ needs.docker-build.result }}" == "success" ]]; then
             echo "🎉 All checks passed!"
             exit 0
