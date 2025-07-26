@@ -6,6 +6,7 @@ use crate::{Result, config::Config};
 
 /// Generator for Anubis configurations
 pub struct AnubisGenerator<'a> {
+    #[allow(dead_code)] // Will be used in future implementation
     config: &'a Config,
 }
 

@@ -9,6 +9,7 @@ use crate::{
 
 /// Generator for Dockerfiles
 pub struct DockerfileGenerator<'a> {
+    #[allow(dead_code)] // Will be used in future implementation
     config: &'a Config,
 }
 

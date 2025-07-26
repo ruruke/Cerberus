@@ -9,6 +9,7 @@ use crate::{
 
 /// Generator for proxy configurations
 pub struct ProxyConfigGenerator<'a> {
+    #[allow(dead_code)] // Will be used in future implementation
     config: &'a Config,
 }
 
