@@ -351,7 +351,7 @@ fn extract_service_section(yaml: &str, service_name: &str) -> String {
     let mut service_indent = 0;
 
     for line in lines {
-        if line.trim_start().starts_with(&format!("{}:", service_name)) {
+        if line.trim_start().starts_with(&format!("{service_name}:")) {
             in_service = true;
             service_indent = line.len() - line.trim_start().len();
             service_lines.push(line);
