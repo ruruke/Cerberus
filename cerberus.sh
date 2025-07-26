@@ -17,10 +17,12 @@ readonly COMPOSE_FILE="${BUILT_DIR}/docker-compose.yaml"
 
 # Source core libraries
 source "${LIB_DIR}/core/utils.sh"
-source "${LIB_DIR}/core/config.sh"
+source "${LIB_DIR}/core/config-simple.sh"
 
 # Global configuration
-CONFIG_FILE="${CERBERUS_CONFIG:-${SCRIPT_DIR}/config.toml}"
+if [[ -z "${CONFIG_FILE:-}" ]]; then
+    CONFIG_FILE="${CERBERUS_CONFIG:-${SCRIPT_DIR}/config.toml}"
+fi
 VERBOSE=false
 QUIET=false
 DEBUG=false
@@ -729,6 +731,256 @@ cmd_scale_status() {
 }
 
 # =============================================================================
+# TESTING COMMANDS
+# =============================================================================
+
+# Run test suite
+cmd_test() {
+    local integration=false
+    local stability=false
+    local stability_runs=10
+    local reset_files=false
+    local patterns=()
+    
+    # Parse options
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --integration|-i)
+                integration=true
+                shift
+                ;;
+            --stability|-s)
+                stability=true
+                shift
+                ;;
+            --stability-runs)
+                stability_runs="$2"
+                shift 2
+                ;;
+            --reset|-r)
+                reset_files=true
+                shift
+                ;;
+            --help|-h)
+                cat << EOF
+Test Command Usage:
+  test                        Run basic unit tests
+  test --integration          Run integration tests
+  test --stability            Run stability tests (10 runs)
+  test --stability-runs N     Run stability tests (N runs)
+  test --reset               Reset test files before running
+  test pattern...            Run tests matching patterns
+
+Options:
+  -i, --integration          Run integration tests
+  -s, --stability           Run stability tests
+  --stability-runs N        Number of stability test runs
+  -r, --reset              Reset test files
+  -h, --help               Show this help
+
+Examples:
+  ./cerberus.sh test                     # Run unit tests
+  ./cerberus.sh test --integration       # Run integration tests
+  ./cerberus.sh test --stability         # Run 10 stability tests
+  ./cerberus.sh test --reset            # Reset and run tests
+  ./cerberus.sh test docker proxy       # Run tests matching patterns
+EOF
+                return 0
+                ;;
+            -*)
+                die "Unknown test option: $1"
+                ;;
+            *)
+                patterns+=("$1")
+                shift
+                ;;
+        esac
+    done
+    
+    print_step "Cerberus Test Suite"
+    echo "==================="
+    echo
+    
+    # Reset test files if requested
+    if [[ "$reset_files" == "true" ]]; then
+        print_step "Resetting test files..."
+        rm -rf "${SCRIPT_DIR}/tests/tmp/"*
+        rm -rf "${BUILT_DIR}"/*
+        print_success "Test files reset"
+        echo
+    fi
+    
+    # Run stability tests
+    if [[ "$stability" == "true" ]]; then
+        run_stability_tests "$stability_runs"
+        return $?
+    fi
+    
+    # Run integration tests
+    if [[ "$integration" == "true" ]]; then
+        run_integration_tests
+        return $?
+    fi
+    
+    # Run unit tests (default)
+    run_unit_tests "${patterns[@]}"
+}
+
+# Run unit tests
+run_unit_tests() {
+    local patterns=("$@")
+    local test_files=()
+    local passed=0
+    local failed=0
+    
+    print_step "Running unit tests..."
+    echo
+    
+    # Find test files
+    if [[ ${#patterns[@]} -eq 0 ]]; then
+        # Run all unit tests
+        while IFS= read -r -d '' test_file; do
+            test_files+=("$test_file")
+        done < <(find "${SCRIPT_DIR}/tests" -name "test-*-generator.sh" -o -name "test-simple-*.sh" -print0 2>/dev/null)
+    else
+        # Run tests matching patterns
+        for pattern in "${patterns[@]}"; do
+            while IFS= read -r -d '' test_file; do
+                test_files+=("$test_file")
+            done < <(find "${SCRIPT_DIR}/tests" -name "*${pattern}*.sh" -print0 2>/dev/null)
+        done
+    fi
+    
+    if [[ ${#test_files[@]} -eq 0 ]]; then
+        print_warning "No test files found"
+        return 0
+    fi
+    
+    # Run each test
+    for test_file in "${test_files[@]}"; do
+        local test_name
+        test_name=$(basename "$test_file" .sh)
+        
+        echo "Running $test_name..."
+        
+        if timeout 60 bash "$test_file" >/dev/null 2>&1; then
+            print_success "$test_name passed"
+            ((passed++))
+        else
+            print_error "$test_name failed"
+            ((failed++))
+        fi
+    done
+    
+    echo
+    echo "Unit Test Results:"
+    echo "  Passed: $passed"
+    echo "  Failed: $failed"
+    echo "  Total:  $((passed + failed))"
+    
+    if [[ $failed -eq 0 ]]; then
+        print_success "All unit tests passed!"
+        return 0
+    else
+        print_error "$failed unit test(s) failed"
+        return 1
+    fi
+}
+
+# Run integration tests
+run_integration_tests() {
+    local passed=0
+    local failed=0
+    
+    print_step "Running integration tests..."
+    echo
+    
+    # Run simple integration test
+    echo "Running simple integration test..."
+    if timeout 120 bash "${SCRIPT_DIR}/tests/test-integration-simple.sh" >/dev/null 2>&1; then
+        print_success "Simple integration test passed"
+        ((passed++))
+    else
+        print_error "Simple integration test failed"
+        ((failed++))
+    fi
+    
+    # Run full integration test (with timeout)
+    echo "Running full integration test..."
+    if timeout 300 bash "${SCRIPT_DIR}/tests/test-integration-all.sh" >/dev/null 2>&1; then
+        print_success "Full integration test passed"
+        ((passed++))
+    else
+        print_error "Full integration test failed (may have timed out)"
+        ((failed++))
+    fi
+    
+    echo
+    echo "Integration Test Results:"
+    echo "  Passed: $passed"
+    echo "  Failed: $failed"
+    echo "  Total:  $((passed + failed))"
+    
+    if [[ $failed -eq 0 ]]; then
+        print_success "All integration tests passed!"
+        return 0
+    else
+        print_error "$failed integration test(s) failed"
+        return 1
+    fi
+}
+
+# Run stability tests
+run_stability_tests() {
+    local runs="${1:-10}"
+    local passed=0
+    local failed=0
+    
+    print_step "Running stability tests ($runs runs)..."
+    echo
+    
+    for ((i=1; i<=runs; i++)); do
+        echo "Stability test run $i/$runs..."
+        
+        # Clean test environment
+        rm -rf "${SCRIPT_DIR}/tests/tmp/"* >/dev/null 2>&1 || true
+        rm -rf "${BUILT_DIR}"/* >/dev/null 2>&1 || true
+        
+        # Run simple integration test
+        if timeout 60 bash "${SCRIPT_DIR}/tests/test-integration-simple.sh" >/dev/null 2>&1; then
+            print_info "Run $i: PASSED"
+            ((passed++))
+        else
+            print_error "Run $i: FAILED"
+            ((failed++))
+        fi
+        
+        # Short delay between runs
+        sleep 1
+    done
+    
+    local success_rate
+    success_rate=$(( passed * 100 / runs ))
+    
+    echo
+    echo "Stability Test Results:"
+    echo "  Successful runs: $passed/$runs"
+    echo "  Success rate:    ${success_rate}%"
+    echo
+    
+    if [[ $passed -eq $runs ]]; then
+        print_success "🎉 All stability tests passed!"
+        return 0
+    elif [[ $success_rate -ge 80 ]]; then
+        print_success "✅ Stability tests mostly passed (${success_rate}% success rate)"
+        return 0
+    else
+        print_error "❌ Stability tests failed (${success_rate}% success rate)"
+        return 1
+    fi
+}
+
+# =============================================================================
 # MONITORING COMMANDS
 # =============================================================================
 
@@ -1090,8 +1342,7 @@ main() {
             
         # Testing
         test)
-            # TODO: Implement test runner
-            print_warning "Test runner not yet implemented"
+            cmd_test "${command_args[@]}"
             ;;
             
         # Help

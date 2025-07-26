@@ -189,6 +189,10 @@ config_validate() {
 
 # List all keys (for debugging)
 config_list_keys() {
+    if ! config_is_loaded; then
+        return 1
+    fi
+    
     for key in "${!CONFIG_CACHE[@]}"; do
         echo "$key"
     done | sort
